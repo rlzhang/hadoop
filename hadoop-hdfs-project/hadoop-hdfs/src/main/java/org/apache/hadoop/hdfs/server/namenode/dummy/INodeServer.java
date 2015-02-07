@@ -111,12 +111,42 @@ public class INodeServer extends Thread {
 					System.out.println("After merged: inode = "
 							+ inode.getFullPathName());
 					this.addBlockMap(inode);
-					if (parent != null)
-						parent.addChild(inode);
+					if (parent != null){
+						//parent.addChild(inode);
+						this.recursiveAddNode(inode,parent);
+					}
 					System.out.println(Tools.display(inode, 10, true));
 
 				}
 			}
+			
+			/**
+			 * If the sub-tree existing on the target NN, will recursively add diff one
+			 * @param child
+			 */
+            private void recursiveAddNode(INode child,INodeDirectory parent){
+            	if(child.isFile()){
+            		parent.addChild(child);
+            		child.setParent(parent);
+            		return;
+            	}
+            	INode temp = parent.getChild(
+						DFSUtil.string2Bytes(child.getLocalName()), Snapshot.CURRENT_STATE_ID);
+            	if (temp != null) {
+					LOG.info("Found path existing , ignore "
+							+ child.getFullPathName());
+					parent = (temp.isDirectory()?temp.asDirectory():parent);
+					ReadOnlyList<INode> roList = child.asDirectory().getChildrenList(
+	        				Snapshot.CURRENT_STATE_ID);
+	        		for (int i = 0; i < roList.size(); i++) {			
+	        			recursiveAddNode(roList.get(i),parent);
+	        		}
+            	} else {
+            		parent.addChild(child);
+            		child.setParent(parent);
+            		return;
+            	}
+            }
 
 			public void handleINode(Connection connection, Object object) {
 				INode request = (INode) object;
