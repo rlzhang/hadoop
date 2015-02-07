@@ -56,6 +56,7 @@ import java.io.BufferedOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -84,6 +85,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.management.ObjectName;
 
 import com.google.common.collect.Lists;
+
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.classification.InterfaceAudience;
@@ -149,6 +151,7 @@ import org.apache.hadoop.hdfs.server.common.StorageInfo;
 import org.apache.hadoop.hdfs.server.datanode.SecureDataNodeStarter.SecureResources;
 import org.apache.hadoop.hdfs.server.datanode.fsdataset.FsDatasetSpi;
 import org.apache.hadoop.hdfs.server.datanode.fsdataset.FsVolumeSpi;
+import org.apache.hadoop.hdfs.server.datanode.fsdataset.impl.FsVolumeImpl;
 import org.apache.hadoop.hdfs.server.datanode.metrics.DataNodeMetrics;
 import org.apache.hadoop.hdfs.server.datanode.web.resources.DatanodeWebHdfsMethods;
 import org.apache.hadoop.hdfs.server.namenode.FileChecksumServlets;
@@ -156,6 +159,7 @@ import org.apache.hadoop.hdfs.server.namenode.StreamFile;
 import org.apache.hadoop.hdfs.server.protocol.BlockRecoveryCommand.RecoveringBlock;
 import org.apache.hadoop.hdfs.server.protocol.DatanodeProtocol;
 import org.apache.hadoop.hdfs.server.protocol.DatanodeRegistration;
+import org.apache.hadoop.hdfs.server.protocol.DatanodeStorage;
 import org.apache.hadoop.hdfs.server.protocol.InterDatanodeProtocol;
 import org.apache.hadoop.hdfs.server.protocol.NamespaceInfo;
 import org.apache.hadoop.hdfs.server.protocol.ReplicaRecoveryInfo;
@@ -3066,4 +3070,66 @@ public class DataNode extends ReconfigurableBase
     checkSuperuserPrivilege();
     spanReceiverHost.removeSpanReceiver(id);
   }
+  
+
+  void updateBlockPools(ExtendedBlock block,String originalPoolId) {
+	   /** metrics.incrBlocksWritten(); **/
+	    BPOfferService bpos = blockPoolManager.get(block.getBlockPoolId());
+	    //ReplicaInfo ri = null;
+	    try {
+			Block storedBlock = data.getStoredBlock(originalPoolId,
+					block.getBlockId());
+			block = new ExtendedBlock(block.getBlockPoolId(),storedBlock);
+			//block = new ExtendedBlock(originalPoolId,storedBlock);
+			System.out.println("[Found block]======getNumBytes="+storedBlock.getNumBytes());
+			 FsVolumeSpi volume = getFSDataset().getVolume(new ExtendedBlock(originalPoolId,storedBlock));
+			 File dir = volume.getFinalizedDir(originalPoolId);
+			 //DatanodeStorage ds = ((FsVolumeImpl) volume).getDatanodeStorage();
+			// System.out.println("[Found DatanodeStorage]======ds="+ds);
+			// BPOfferService.setDs(ds);
+			 
+			// ri = new FinalizedReplica(storedBlock,volume,dir);
+			 //BPOfferService.setReplicaInfo(ri);
+			 
+		} catch (IOException e) {
+			e.printStackTrace();
+			System.out.println("[updateBlockPools] Error set replicainfo."+e.getMessage());
+			
+		}
+	    if(bpos != null) {
+	    	List<BPServiceActor> list = bpos.getBPServiceActors();
+	    	System.out.println("[updateBlockPools]======NN name:"+list.get(0).getNNSocketAddress().getHostName());
+	      //bpos.notifyNamenodeReceivedBlock(block, DataNode.EMPTY_DEL_HINT, replicaInfo.getStorageUuid());
+	    	//bpos.notifyNamenodeReceivingBlock(block, this.storage.getDatanodeUuid());
+	    	//blockScanner.addBlock(block);
+	    	//add block to new pool!
+			 try {
+				getFSDataset().finalizeBlockAndAdd(block,originalPoolId);
+				System.out.println("[DataNode:finalizeBlock] Successful!");
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+				System.out.println("[DataNode:finalizeBlock] Error!!!"+e.getMessage());
+			}
+			 
+	    } else {
+	      LOG.warn("Cannot find BPOfferService for reporting block received for bpid="
+	          + block.getBlockPoolId());
+	    }
+	   
+	    /**
+	    List<String> bpids = Lists.newArrayList();
+        bpids.add(block.getBlockPoolId());
+        block.getLocalBlock().get
+	    data.addVolumes(volumes, bpids);
+	    **/
+	    /**
+	    FsVolumeSpi volume = getFSDataset().getVolume(block);
+	    System.out.println("[Found FsVolumeSpi]======"+volume);
+	    if (blockScanner != null && volume !=null && !volume.isTransientStorage()) {
+	      blockScanner.addBlock(block);
+	    }
+	    **/
+	  }
+
 }

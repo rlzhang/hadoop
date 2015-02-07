@@ -39,22 +39,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.*;
 import java.util.concurrent.Executor;
 
 import javax.management.NotCompliantMBeanException;
 import javax.management.ObjectName;
 import javax.management.StandardMBean;
 
-import com.google.common.collect.Lists;
-import com.google.common.base.Preconditions;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hdfs.ExtendedBlockId;
 import org.apache.hadoop.hdfs.DFSConfigKeys;
+import org.apache.hadoop.hdfs.ExtendedBlockId;
 import org.apache.hadoop.hdfs.StorageType;
 import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.protocol.BlockListAsLongs;
@@ -89,7 +86,7 @@ import org.apache.hadoop.hdfs.server.datanode.fsdataset.ReplicaOutputStreams;
 import org.apache.hadoop.hdfs.server.datanode.fsdataset.RollingLogs;
 import org.apache.hadoop.hdfs.server.datanode.fsdataset.RoundRobinVolumeChoosingPolicy;
 import org.apache.hadoop.hdfs.server.datanode.fsdataset.VolumeChoosingPolicy;
-import static org.apache.hadoop.hdfs.server.datanode.fsdataset.impl.RamDiskReplicaTracker.RamDiskReplica;
+import org.apache.hadoop.hdfs.server.datanode.fsdataset.impl.RamDiskReplicaTracker.RamDiskReplica;
 import org.apache.hadoop.hdfs.server.datanode.metrics.FSDatasetMBean;
 import org.apache.hadoop.hdfs.server.protocol.BlockRecoveryCommand.RecoveringBlock;
 import org.apache.hadoop.hdfs.server.protocol.DatanodeStorage;
@@ -105,6 +102,9 @@ import org.apache.hadoop.util.DiskChecker.DiskErrorException;
 import org.apache.hadoop.util.DiskChecker.DiskOutOfSpaceException;
 import org.apache.hadoop.util.ReflectionUtils;
 import org.apache.hadoop.util.Time;
+
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
 
 /**************************************************
  * FSDataset manages a set of data blocks.  Each block
@@ -651,6 +651,20 @@ class FsDatasetImpl implements FsDatasetSpi<FsVolumeImpl> {
     }
     return info;
   }
+  
+  ReplicaInfo getReplicaInfo(ExtendedBlock b,String oldBpid)
+	      throws ReplicaNotFoundException {
+	    ReplicaInfo info = volumeMap.get(oldBpid, b.getLocalBlock());
+	    // How about try again?
+	    if(info == null) {
+	    	volumeMap.get(b.getBlockPoolId(), b.getLocalBlock());
+	    }
+	    if (info == null) {
+	      throw new ReplicaNotFoundException(
+	          ReplicaNotFoundException.NON_EXISTENT_REPLICA + b);
+	    }
+	    return info;
+	  }
   
   /**
    * Get the meta info of a block stored in volumeMap. Block is looked up
@@ -1273,6 +1287,22 @@ class FsDatasetImpl implements FsDatasetSpi<FsVolumeImpl> {
   // we can GC it safely.
   //
 
+  public synchronized void finalizeBlockAndAdd(ExtendedBlock b,String oldBpid) throws IOException {
+	    if (Thread.interrupted()) {
+	      // Don't allow data modifications from interrupted threads
+	      throw new IOException("Cannot finalize block from Interrupted Thread");
+	    }
+	    ReplicaInfo replicaInfo = getReplicaInfo(b,oldBpid); 
+	    /** Always finalized  
+	    if (replicaInfo.getState() == ReplicaState.FINALIZED) {
+	      // this is legal, when recovery happens on a file that has
+	      // been opened for append but never modified
+	      return;
+	    }
+	    **/
+	    finalizeReplica(b.getBlockPoolId(), replicaInfo);
+	  }
+  
   /**
    * Complete the block write!
    */

@@ -269,6 +269,14 @@ public interface FsDatasetSpi<V extends FsVolumeSpi> extends FSDatasetMBean {
    * @throws IOException
    */
   public void finalizeBlock(ExtendedBlock b) throws IOException;
+  
+  /**
+   * Add block to new pool
+   * @param b
+   * @param oldBpid
+   * @throws IOException
+   */
+  public void finalizeBlockAndAdd(ExtendedBlock b,String oldBpid) throws IOException;
 
   /**
    * Unfinalizes the block previously opened for writing using writeToBlock.

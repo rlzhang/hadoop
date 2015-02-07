@@ -30,6 +30,7 @@ import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.protocol.DatanodeInfo;
 import org.apache.hadoop.hdfs.protocol.ExtendedBlock;
 import org.apache.hadoop.hdfs.protocolPB.DatanodeProtocolClientSideTranslatorPB;
+import org.apache.hadoop.hdfs.server.namenode.NameNodeDummy;
 import org.apache.hadoop.hdfs.server.protocol.*;
 import org.apache.hadoop.hdfs.server.protocol.ReceivedDeletedBlockInfo.BlockStatus;
 
@@ -588,6 +589,7 @@ class BPOfferService {
     if (cmd == null) {
       return true;
     }
+
     /*
      * Datanode Registration can be done asynchronously here. No need to hold
      * the lock. for more info refer HDFS-5014
@@ -642,6 +644,8 @@ class BPOfferService {
       cmd instanceof BlockCommand? (BlockCommand)cmd: null;
     final BlockIdCommand blockIdCmd = 
       cmd instanceof BlockIdCommand ? (BlockIdCommand)cmd: null;
+    final PoolIdCommand poolIdCmd = 
+      cmd instanceof PoolIdCommand ? (PoolIdCommand)cmd: null;
 
     switch(cmd.getAction()) {
     case DatanodeProtocol.DNA_TRANSFER:
@@ -718,12 +722,25 @@ class BPOfferService {
         dxcs.balanceThrottler.setBandwidth(bandwidth);
       }
       break;
+    case DatanodeProtocol.DNA_ADDPOOLID:
+    	NameNodeDummy.getNameNodeDummyInstance().setNewBpId(poolIdCmd.getBlockPoolId());
+        System.out.println("=======Adding blocks to new pool>>"+poolIdCmd.getBlockPoolId());
+        //BPOfferService.setPoolIdCommand(poolIdCmd);
+        for(int j=0;j<poolIdCmd.getBlockIds().length;j++){
+        ExtendedBlock tmp =	new ExtendedBlock(poolIdCmd.getBlockPoolId(), poolIdCmd.getBlockIds()[j]);
+        dn.updateBlockPools(tmp,getBlockPoolId());
+        System.out.println("======Update block id = "+poolIdCmd.getBlockIds()[j]);
+        System.out.println("======New Pool ID === "+poolIdCmd.getBlockPoolId()+"======Old Pool ID === "+getBlockPoolId());
+        }
+        NameNodeDummy.getNameNodeDummyInstance().setReportToNewNN(Boolean.TRUE);
+        break;
+
     default:
       LOG.warn("Unknown DatanodeCommand action: " + cmd.getAction());
     }
     return true;
   }
- 
+
   /**
    * This method should handle commands from Standby namenode except
    * DNA_REGISTER which should be handled earlier itself.

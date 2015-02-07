@@ -77,7 +77,8 @@ public interface DatanodeProtocol {
   final static int DNA_BALANCERBANDWIDTHUPDATE = 8; // update balancer bandwidth
   final static int DNA_CACHE = 9;      // cache blocks
   final static int DNA_UNCACHE = 10;   // uncache blocks
-
+  final static int DNA_ADDPOOLID = 11;   // add new namenode report for blocks
+  final static int DNA_REMOVEPOOLID = 12;   // remove existing namenode report for blocks
   /** 
    * Register Datanode.
    *

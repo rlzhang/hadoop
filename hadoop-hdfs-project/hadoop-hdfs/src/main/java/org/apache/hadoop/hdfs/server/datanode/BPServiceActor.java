@@ -22,9 +22,11 @@ import static org.apache.hadoop.util.Time.now;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.SocketTimeoutException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
 
-import com.google.common.base.Joiner;
 import org.apache.commons.logging.Log;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.ha.HAServiceProtocol.HAServiceState;
@@ -39,6 +41,7 @@ import org.apache.hadoop.hdfs.protocol.UnregisteredNodeException;
 import org.apache.hadoop.hdfs.protocolPB.DatanodeProtocolClientSideTranslatorPB;
 import org.apache.hadoop.hdfs.server.common.IncorrectVersionException;
 import org.apache.hadoop.hdfs.server.namenode.FSNamesystem;
+import org.apache.hadoop.hdfs.server.namenode.NameNodeDummy;
 import org.apache.hadoop.hdfs.server.protocol.DatanodeCommand;
 import org.apache.hadoop.hdfs.server.protocol.DatanodeRegistration;
 import org.apache.hadoop.hdfs.server.protocol.DatanodeStorage;
@@ -56,6 +59,7 @@ import org.apache.hadoop.util.VersionInfo;
 import org.apache.hadoop.util.VersionUtil;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Joiner;
 import com.google.common.collect.Maps;
 
 /**
@@ -522,6 +526,81 @@ class BPServiceActor implements Runnable {
     return cmds.size() == 0 ? null : cmds;
   }
 
+  /**
+   * Report collected blocks to new namenode, part of move namespace operation.
+   * @param newBlockPoolId
+   * @return
+   * @throws IOException
+   */
+  synchronized List<DatanodeCommand> blockReportToNewNN(String newBlockPoolId) throws IOException {
+	    // send block report if timer has expired.
+	    final long startTime = now();
+	    ArrayList<DatanodeCommand> cmds = new ArrayList<DatanodeCommand>();
+
+	    // Flush any block information that precedes the block report. Otherwise
+	    // we have a chance that we will miss the delHint information
+	    // or we will report an RBW replica after the BlockReport already reports
+	    // a FINALIZED one.
+	    reportReceivedDeletedBlocks();
+	    lastDeletedReport = startTime;
+
+	    long brCreateStartTime = now();
+	    Map<DatanodeStorage, BlockListAsLongs> perVolumeBlockLists =
+	        dn.getFSDataset().getBlockReports(newBlockPoolId);
+
+	    // Convert the reports to the format expected by the NN.
+	    int i = 0;
+	    int totalBlockCount = 0;
+	    StorageBlockReport reports[] =
+	        new StorageBlockReport[perVolumeBlockLists.size()];
+
+	    for(Map.Entry<DatanodeStorage, BlockListAsLongs> kvPair : perVolumeBlockLists.entrySet()) {
+	      BlockListAsLongs blockList = kvPair.getValue();
+	      reports[i++] = new StorageBlockReport(
+	          kvPair.getKey(), blockList.getBlockListAsLongs());
+	      totalBlockCount += blockList.getNumberOfBlocks();
+	    }
+
+	    // Send the reports to the NN.
+	    int numReportsSent;
+	    long brSendStartTime = now();
+	    if (totalBlockCount < dnConf.blockReportSplitThreshold) {
+	      // Below split threshold, send all reports in a single message.
+	      numReportsSent = 1;
+	      DatanodeCommand cmd =
+	          bpNamenode.blockReport(bpRegistration, bpos.getBlockPoolId(), reports);
+	     
+	      if (cmd != null) {
+	        cmds.add(cmd);
+	      }
+	    } else {
+	      // Send one block report per message.
+	      numReportsSent = i;
+	      for (StorageBlockReport report : reports) {
+	        StorageBlockReport singleReport[] = { report };
+	        DatanodeCommand cmd = bpNamenode.blockReport(
+	            bpRegistration, bpos.getBlockPoolId(), singleReport);
+	        if (cmd != null) {
+	          cmds.add(cmd);
+	        }
+	      }
+	    }
+
+	    // Log the block report processing stats from Datanode perspective
+	    long brSendCost = now() - brSendStartTime;
+	    long brCreateCost = brSendStartTime - brCreateStartTime;
+	    dn.getMetrics().addBlockReport(brSendCost);
+	    LOG.info("Sent " + numReportsSent + " blockreports " + totalBlockCount +
+	        " blocks total. Took " + brCreateCost +
+	        " msec to generate and " + brSendCost +
+	        " msecs for RPC and NN processing. " +
+	        " Got back commands " +
+	            (cmds.size() == 0 ? "none" : Joiner.on("; ").join(cmds)));
+
+	    scheduleNextBlockReport(startTime);
+	    return cmds.size() == 0 ? null : cmds;
+	  }
+
   private void scheduleNextBlockReport(long previousReportStartTime) {
     // If we have sent the first set of block reports, then wait a random
     // time before we start the periodic block reports.
@@ -694,7 +773,6 @@ class BPServiceActor implements Runnable {
             if (state == HAServiceState.ACTIVE) {
               handleRollingUpgradeStatus(resp);
             }
-
             long startProcessCommands = now();
             if (!processCommand(resp.getCommands()))
               continue;
@@ -711,6 +789,9 @@ class BPServiceActor implements Runnable {
           reportReceivedDeletedBlocks();
           lastDeletedReport = startTime;
         }
+
+        //Report to new NN
+        this.reportToNewNN();
 
         List<DatanodeCommand> cmds = blockReport();
         processCommand(cmds == null ? null : cmds.toArray(new DatanodeCommand[cmds.size()]));
@@ -761,6 +842,23 @@ class BPServiceActor implements Runnable {
     } // while (shouldRun())
   } // offerService
 
+  /**
+   * Adding related blocks report to new NN
+   */
+  void reportToNewNN(){
+      if(NameNodeDummy.getNameNodeDummyInstance().isReportToNewNN()&&bpos.getBlockPoolId().equals(NameNodeDummy.getNameNodeDummyInstance().getNewBpId())){
+      	List<DatanodeCommand> cmds = null;
+		try {
+			cmds = blockReportToNewNN(NameNodeDummy.getNameNodeDummyInstance().getNewBpId());
+		} catch (IOException e) {
+			LOG.error("Cannot process report to new NN."+e.getMessage());
+			return;
+		}
+      	processCommand(cmds == null ? null : cmds.toArray(new DatanodeCommand[cmds.size()]));
+        NameNodeDummy.getNameNodeDummyInstance().setReportToNewNN(Boolean.FALSE);
+        LOG.info("Successfully send block report to "+bpos.getBPServiceActors().get(0).getNNSocketAddress().getHostName()+", poolid = "+bpos.getBlockPoolId());
+      }
+  }
   /**
    * Register one bp with the corresponding NameNode
    * <p>

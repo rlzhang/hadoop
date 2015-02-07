@@ -195,7 +195,22 @@ public class DataBlockScanner implements Runnable {
           + block.getBlockPoolId());
     }
   }
-  
+
+  /**
+   * Add the existing block to another namenode pool
+   * @param block
+   */
+  public void addBlockForOtherPool(ExtendedBlock block) {
+	    BlockPoolSliceScanner bpScanner = getBPScanner(block.getBlockPoolId());
+	    if (bpScanner != null) {
+	    //	bpScanner1
+	      bpScanner.addBlock(block);
+	    } else {
+	      LOG.warn("No block pool scanner found for block pool id: "
+	          + block.getBlockPoolId());
+	    }
+	  }
+
   boolean isInitialized(String bpid) {
     return getBPScanner(bpid) != null;
   }

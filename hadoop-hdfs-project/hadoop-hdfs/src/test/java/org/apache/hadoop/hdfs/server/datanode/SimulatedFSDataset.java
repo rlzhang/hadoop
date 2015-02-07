@@ -1222,5 +1222,12 @@ public class SimulatedFSDataset implements FsDatasetSpi<FsVolumeSpi> {
   public void onFailLazyPersist(String bpId, long blockId) {
     throw new UnsupportedOperationException();
   }
+
+@Override
+public void finalizeBlockAndAdd(ExtendedBlock b, String oldBpid)
+		throws IOException {
+	// TODO Auto-generated method stub
+	
+}
 }
 

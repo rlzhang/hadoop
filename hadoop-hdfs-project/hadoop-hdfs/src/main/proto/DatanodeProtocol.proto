@@ -57,6 +57,7 @@ message DatanodeCommandProto {
     UnusedUpgradeCommand = 6;
     NullDatanodeCommand = 7;
     BlockIdCommand = 8;
+    PoolIdCommand = 9;
   }
 
   required Type cmdType = 1;    // Type of the command
@@ -70,6 +71,7 @@ message DatanodeCommandProto {
   optional KeyUpdateCommandProto keyUpdateCmd = 6;
   optional RegisterCommandProto registerCmd = 7;
   optional BlockIdCommandProto blkIdCmd = 8;
+  optional PoolIdCommandProto poolIdCmd = 9;
 }
 
 /**
@@ -109,6 +111,20 @@ message BlockIdCommandProto {
   enum Action {
     CACHE = 1;
     UNCACHE = 2;
+  }
+  required Action action = 1;
+  required string blockPoolId = 2;
+  repeated uint64 blockIds = 3 [packed=true];
+}
+
+/**
+*
+*
+*/
+message PoolIdCommandProto {
+  enum Action {
+    ADD = 1;
+    REMOVE = 2;
   }
   required Action action = 1;
   required string blockPoolId = 2;
