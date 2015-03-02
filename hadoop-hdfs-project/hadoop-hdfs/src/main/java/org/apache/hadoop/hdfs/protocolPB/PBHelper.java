@@ -142,6 +142,7 @@ import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.DatanodeStorageProto.Sto
 import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.DirectoryListingProto;
 import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.ExportedBlockKeysProto;
 import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.ExtendedBlockProto;
+import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.ExternalStorageMap;
 import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.FsPermissionProto;
 import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.FsServerDefaultsProto;
 import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.HdfsFileStatusProto;
@@ -186,6 +187,8 @@ import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.ReplicaState;
 import org.apache.hadoop.hdfs.server.common.StorageInfo;
 import org.apache.hadoop.hdfs.server.namenode.CheckpointSignature;
 import org.apache.hadoop.hdfs.server.namenode.INodeId;
+import org.apache.hadoop.hdfs.server.namenode.NameNodeDummy;
+import org.apache.hadoop.hdfs.server.namenode.dummy.ExternalStorage;
 import org.apache.hadoop.hdfs.server.protocol.BalancerBandwidthCommand;
 import org.apache.hadoop.hdfs.server.protocol.BlockCommand;
 import org.apache.hadoop.hdfs.server.protocol.BlockIdCommand;
@@ -412,6 +415,22 @@ public class PBHelper {
     }
     return result;
   }
+  //ExternalStorageMap
+  public static ExternalStorageMap convert(ExternalStorage b) {
+	  //NameNodeDummy.log("[PBHelper]convert ExternalStorage "+b.toString());
+	    return ExternalStorageMap.newBuilder().setId(b.getId())
+	    		.setParentId(b.getParentId()).setMoveTime(b.getMoveTime())
+	    		.setPath(b.getPath()).setTargetNNPId(b.getTargetNNPId())
+	    		.setTargetNNServer(b.getTargetNNServer())
+	    		.setSourceNNServer(b.getSourceNNServer())
+	        .build();
+	  }
+  public static ExternalStorage convert(ExternalStorageMap t) {
+	  //NameNodeDummy.log("[PBHelper]convert ExternalStorageMap "+t.toString());
+	    //Have to fix here, not sure why got empty ExternalStorageMap instance, even server side didn't transfer empty instance at all
+	    if(t.getTargetNNServer()==null||t.getTargetNNServer().length()==0) return null;
+	    return new ExternalStorage(t.getParentId(),t.getId(),t.getTargetNNServer(),t.getTargetNNPId(),t.getPath(),t.getSourceNNServer());
+	  }
   
   // Block
   public static BlockProto convert(Block b) {
@@ -1456,7 +1475,7 @@ public class PBHelper {
   public static HdfsFileStatus convert(HdfsFileStatusProto fs) {
     if (fs == null)
       return null;
-    return new HdfsLocatedFileStatus(
+    HdfsFileStatus hdfsFileStatus = new HdfsLocatedFileStatus(
         fs.getLength(), fs.getFileType().equals(FileType.IS_DIR), 
         fs.getBlockReplication(), fs.getBlocksize(),
         fs.getModificationTime(), fs.getAccessTime(),
@@ -1470,6 +1489,15 @@ public class PBHelper {
         fs.hasFileEncryptionInfo() ? convert(fs.getFileEncryptionInfo()) : null,
         fs.hasStoragePolicy() ? (byte) fs.getStoragePolicy()
             : BlockStoragePolicySuite.ID_UNSPECIFIED);
+    if(fs.getEsList()!=null) {
+    	ExternalStorage[] es = new ExternalStorage[fs.getEsList().size()];
+    	for(int i=0;i<fs.getEsList().size();i++)
+    		es[i] = PBHelper.convert(fs.getEsList().get(i));
+    	hdfsFileStatus.setEs(es);
+    }
+    NameNodeDummy.log("[PBHelper]convert:fs.getFileType()="+fs.getFileType());
+    hdfsFileStatus.setIfTryNext(fs.getFileType().equals(FileType.IS_EXTERNALLINK));
+    return hdfsFileStatus;
   }
 
   public static SnapshottableDirectoryStatus convert(
@@ -1500,6 +1528,8 @@ public class PBHelper {
       fType = FileType.IS_DIR;
     } else if (fs.isSymlink()) {
       fType = FileType.IS_SYMLINK;
+    } else if(fs.isIfTryNext()){
+      fType = FileType.IS_EXTERNALLINK;
     }
 
     HdfsFileStatusProto.Builder builder = 
@@ -1519,6 +1549,12 @@ public class PBHelper {
       setStoragePolicy(fs.getStoragePolicy());
     if (fs.isSymlink())  {
       builder.setSymlink(ByteString.copyFrom(fs.getSymlinkInBytes()));
+    }
+    if(fs.getEs()!=null){
+    	for(int i=0;i<fs.getEs().length;i++){
+    		if(fs.getEs()[i]!=null)
+    		builder.addEs(PBHelper.convert(fs.getEs()[i]));
+    	}
     }
     if (fs.getFileEncryptionInfo() != null) {
       builder.setFileEncryptionInfo(convert(fs.getFileEncryptionInfo()));

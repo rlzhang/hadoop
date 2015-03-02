@@ -26,6 +26,9 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.hdfs.DFSUtil;
+import org.apache.hadoop.hdfs.server.namenode.dummy.ExternalStorage;
+
+import com.esotericsoftware.minlog.Log;
 
 /** Interface that represents the over the wire information for a file.
  */
@@ -53,6 +56,9 @@ public class HdfsFileStatus {
   private final byte storagePolicy;
   
   public static final byte[] EMPTY_NAME = new byte[0];
+  
+  private ExternalStorage[] es = null;
+  private boolean ifTryNext = false;
 
   /**
    * Constructor
@@ -95,6 +101,25 @@ public class HdfsFileStatus {
     this.storagePolicy = storagePolicy;
   }
 
+  public HdfsFileStatus(ExternalStorage es[],String path){
+	  this.setEs(es);
+	  this.ifTryNext = true;
+	  this.length = -1;
+	    this.isdir = false;
+	    this.block_replication = -1;
+	    this.blocksize = -1;
+	    this.modification_time = -1;
+	    this.access_time = -1;
+	    this.permission = FsPermission.getDefault();
+	    this.owner = "";
+	    this.group = "";
+	    this.symlink = "".getBytes();
+	    this.path = path.getBytes();
+	    this.fileId = -1;
+	    this.childrenNum = -1;
+	    this.feInfo = null;
+	    this.storagePolicy = '1';
+  }
   /**
    * Get the length of this file, in bytes.
    * @return the length of this file, in bytes.
@@ -268,4 +293,20 @@ public class HdfsFileStatus {
         (getFullPath(path)).makeQualified(
             defaultUri, null)); // fully-qualify path
   }
+
+public ExternalStorage[] getEs() {
+	return es;
+}
+
+public void setEs(ExternalStorage[] es) {
+	this.es = es;
+}
+
+public boolean isIfTryNext() {
+	return ifTryNext;
+}
+
+public void setIfTryNext(boolean ifTryNext) {
+	this.ifTryNext = ifTryNext;
+}
 }

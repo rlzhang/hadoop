@@ -158,12 +158,21 @@ message INodeSection {
     optional uint64 modificationTime = 3;
     optional uint64 accessTime = 4;
   }
+  
+    message INodeExternalLink {
+    optional fixed64 permission = 1;
+    optional bytes target = 2;
+    optional uint64 modificationTime = 3;
+    optional uint64 accessTime = 4;
+    repeated ExternalStorageMap esMap = 5;
+  }
 
   message INode {
     enum Type {
       FILE = 1;
       DIRECTORY = 2;
       SYMLINK = 3;
+      EXTERNALLINK = 4;
     };
     required Type type = 1;
     required uint64 id = 2;
@@ -172,6 +181,7 @@ message INodeSection {
     optional INodeFile file = 4;
     optional INodeDirectory directory = 5;
     optional INodeSymlink symlink = 6;
+    optional INodeExternalLink externallink = 7;
   }
 
   optional uint64 lastInodeId = 1;

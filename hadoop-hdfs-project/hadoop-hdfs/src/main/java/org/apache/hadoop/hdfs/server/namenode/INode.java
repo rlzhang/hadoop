@@ -333,10 +333,23 @@ public abstract class INode implements INodeAttributes, Diff.Element<byte[]> {
   public boolean isDirectory() {
     return false;
   }
+  
+  /**
+   * Check whether it's a external link
+   */
+  public boolean isExternalLink() {
+    return false;
+  }
 
   /** Cast this inode to an {@link INodeDirectory}.  */
   public INodeDirectory asDirectory() {
     throw new IllegalStateException("Current inode is not a directory: "
+        + this.toDetailString());
+  }
+  
+  /** Cast this inode to an {@link INodeExternalLink}.  */
+  public INodeExternalLink asExternalLink() {
+    throw new IllegalStateException("Current inode is not a external link: "
         + this.toDetailString());
   }
 

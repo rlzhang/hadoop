@@ -2,23 +2,47 @@ package org.apache.hadoop.hdfs.server.namenode;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.net.InetSocketAddress;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
 
 import javax.servlet.jsp.JspWriter;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.fs.FileAlreadyExistsException;
 import org.apache.hadoop.fs.UnresolvedLinkException;
+import org.apache.hadoop.fs.permission.PermissionStatus;
+import org.apache.hadoop.hdfs.DFSClient;
+import org.apache.hadoop.hdfs.protocol.AclException;
 import org.apache.hadoop.hdfs.protocol.DatanodeInfo;
 import org.apache.hadoop.hdfs.protocol.LocatedBlock;
 import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
+import org.apache.hadoop.hdfs.protocol.QuotaExceededException;
+import org.apache.hadoop.hdfs.protocol.SnapshotAccessControlException;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockManager;
+import org.apache.hadoop.hdfs.server.namenode.INode.BlocksMapUpdateInfo;
+import org.apache.hadoop.hdfs.server.namenode.dummy.ExternalStorage;
+import org.apache.hadoop.hdfs.server.namenode.dummy.ExternalStorageMapping;
 import org.apache.hadoop.hdfs.server.namenode.dummy.INodeClient;
+import org.apache.hadoop.hdfs.server.namenode.dummy.OverflowTable;
+import org.apache.hadoop.hdfs.server.namenode.dummy.OverflowTableNode;
+import org.apache.hadoop.hdfs.server.namenode.dummy.SubTree;
+import org.apache.hadoop.hdfs.server.namenode.dummy.UpdateRequest;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
+import org.apache.hadoop.hdfs.util.ChunkedArrayList;
 import org.apache.hadoop.hdfs.util.ReadOnlyList;
+import org.apache.hadoop.security.AccessControlException;
+import org.apache.hadoop.util.Time;
 
 /**
  * Main entry of display and move namespace tree.
@@ -40,19 +64,36 @@ public class NameNodeDummy {
 	private static NameNodeDummy nameNodeDummy = null;
 	private FSNamesystem fs;
 	private NameNode nn;
-
+	INodeDirectory root = null;
 	private boolean isNotifyDatanode = false;
-	
-	// For block report during heartbeat period. Namenode notifys all datanodes add new block pool ids.
+	// For block report during heartbeat period. Namenode notifys all datanodes
+	// add new block pool ids.
 	private Map<String, List<Long>> blockIds;
 	private String originalBpId;
+	public static boolean useDistributedNN = true;
+	public final static boolean DEBUG = true;
+	public final static boolean INFOR = true;
+	private Map<String,OverflowTable> ROOT = new HashMap<String,OverflowTable>();
 	
+	private Map<String,String> map = new HashMap<String,String>();
 	/**
 	 * Server side
 	 */
 	private String newBpId;
 	private boolean isReportToNewNN = false;
 
+	public boolean isMapEmpty(){
+		return ROOT.size()==0?true:false;
+	}
+	private ExternalStorage[] getExternalStorageFromRoot(){
+		List<ExternalStorage> temp = new ArrayList<ExternalStorage>();
+		for(OverflowTable ot : ROOT.values()){
+			//log("[nameNodeDummy] getExternalStorageFromRoot: In memory map key "+ ROOT.);
+			temp.addAll(Arrays.asList(ot.getAllChildren(ot.getRoot())));
+		}
+		return temp.toArray(new ExternalStorage[0]);
+	}
+	
 	public static NameNodeDummy getNameNodeDummyInstance() {
 		if (nameNodeDummy != null)
 			return nameNodeDummy;
@@ -63,22 +104,41 @@ public class NameNodeDummy {
 		return nameNodeDummy;
 	}
 
-	private NameNodeDummy() {
+	public NameNodeDummy() {
 
 	}
 	
-	public FSNamesystem getFSNamesystem() {
-		if(fs==null&&nn!=null) fs = nn.getNamesystem();
-		return fs;
+	public static boolean isNullOrBlank(Object[] obj) { 
+	    return obj == null || obj.length == 0;
+	}
+	
+	public static boolean isNullOrBlank(String str) { 
+	    return str == null || str.length() == 0;
 	}
 
+	public FSNamesystem getFSNamesystem() {
+		if (fs == null && nn != null)
+			fs = nn.getNamesystem();
+		return fs;
+	}
+	
+	public InetSocketAddress getNamenodeAddress(){
+		return this.nn.getNameNodeAddress();
+	}
+
+	public static String getExceptionsFullStack(Exception ex){
+		StringWriter errors = new StringWriter();
+		ex.printStackTrace(new PrintWriter(errors));
+		return errors.toString();
+	}
 	public void setFSNamesystem(FSNamesystem fs) {
 		this.fs = fs;
 	}
-	
+
 	public void setNameNode(NameNode nn) {
 		this.nn = nn;
 	}
+
 	/**
 	 * Print out logs to web page
 	 * 
@@ -96,6 +156,10 @@ public class NameNodeDummy {
 		}
 	}
 
+	public static void log(String str){
+		System.out.println(str);
+	}
+	
 	/**
 	 * Move namespace sub-tree to different name node.
 	 * 
@@ -105,8 +169,8 @@ public class NameNodeDummy {
 	 * @param out
 	 * @throws IOException
 	 */
-	public void moveNS(FSNamesystem fs, String path, String server,
-			JspWriter out) throws IOException {
+	public synchronized void moveNS(FSNamesystem fs, String path,
+			String server, JspWriter out) throws IOException {
 		long start = System.currentTimeMillis();
 		logs(out, "Starting moving process..." + ", moving namespace " + path
 				+ " to server" + server);
@@ -129,12 +193,12 @@ public class NameNodeDummy {
 			return;
 		}
 
-		logs(out, "Found path " + subTree.getFullPathName());
+		logs(out, " Found path " + subTree.getFullPathName());
 		logs(out, " Display namespace (maximum 10 levels) :");
 		logs(out, this.printNSInfo(subTree, 0, DEFAULT_LEVEL));
 
 		try {
-			INodeClient client = new INodeClient(server,
+			INodeClient client = INodeClient.getInstance(server,
 					NameNodeDummy.TCP_PORT, NameNodeDummy.UDP_PORT);
 
 			// Send sub-tree to another name node
@@ -143,12 +207,12 @@ public class NameNodeDummy {
 			// Collect blocks information and will notify data node update block
 			// pool id.
 			Map<String, List<Long>> map = getBlockInfos(fs, subTree);
-
 			this.setBlockIds(map);
-
+			// client.cleanup();
 		} catch (Exception e) {
 			e.printStackTrace();
-			out.println("Namenode server not ready, please try again later ... "+e.getMessage());
+			out.println("Namenode server not ready, please try again later ... "
+					+ e.getMessage());
 		}
 
 		logs(out, "Spend " + (System.currentTimeMillis() - start)
@@ -178,6 +242,7 @@ public class NameNodeDummy {
 
 	/**
 	 * Find the root dir.
+	 * 
 	 * @param nn
 	 * @return
 	 */
@@ -217,20 +282,20 @@ public class NameNodeDummy {
 			return "Namenode not ready yet! System is still initializing, please wait...";
 		}
 
-		INodeDirectory root = null;
-		try {
-			root = (INodeDirectory) fs.getFSDirectory().getINode("/");
-		} catch (UnresolvedLinkException e) {
-			return "Cannot find root dir on namenode!";
-		}
+		if (root == null)
+			try {
+				root = (INodeDirectory) fs.getFSDirectory().getINode("/");
+			} catch (UnresolvedLinkException e) {
+				return "Cannot find root dir on namenode!";
+			}
 
 		return printNSInfo(root, 0, max);
 	}
 
 	private final static long prefetchSize = 10 * 64 * 1024 * 1024;
 
-	private static Map<String, List<Long>> getBlockInfos(FSNamesystem fs,
-			String path, Map<String, List<Long>> blockIds)
+	private synchronized static Map<String, List<Long>> getBlockInfos(
+			FSNamesystem fs, String path, Map<String, List<Long>> blockIds)
 			throws FileNotFoundException, UnresolvedLinkException, IOException {
 
 		// Get block locations within the specified range.
@@ -249,7 +314,8 @@ public class NameNodeDummy {
 					blockIds.put(di[j].getHostName(), ids);
 				}
 				ids.add(Long.valueOf(list.get(i).getBlock().getBlockId()));
-				LOG.info("Found datanode include moving namespace blocks:" + di[j].getHostName());
+				LOG.info("Found datanode include moving namespace blocks:"
+						+ di[j].getHostName());
 			}
 		}
 
@@ -262,6 +328,7 @@ public class NameNodeDummy {
 			list.add(inode.asFile().getFullPathName());
 			return list;
 		}
+		if(!inode.isDirectory()) return list;
 		ReadOnlyList<INode> roList = inode.asDirectory().getChildrenList(
 				Snapshot.CURRENT_STATE_ID);
 		for (int i = 0; i < roList.size(); i++) {
@@ -301,7 +368,7 @@ public class NameNodeDummy {
 	 * @param max
 	 * @return
 	 */
-	private String printNSInfo(INode root, int startLevel, int max) {
+	private synchronized String printNSInfo(INode root, int startLevel, int max) {
 		StringBuilder sb = new StringBuilder();
 		if (startLevel > max || !root.isDirectory())
 			return "";
@@ -370,6 +437,298 @@ public class NameNodeDummy {
 
 	public void setNotifyDatanode(boolean isNotifyDatanode) {
 		this.isNotifyDatanode = isNotifyDatanode;
+	}
+
+	public void addINode(INodeFile inode) {
+		if (inode == null) {
+			System.out.println("Cannot add file null!");
+			return;
+		}
+		try {
+			inode = this.addFile(inode.getFullPathName(), inode
+					.getPermissionStatus(), inode.getFileReplication(), inode
+					.getPreferredBlockSize(), inode
+					.getFileUnderConstructionFeature().getClientName(), inode
+					.getFileUnderConstructionFeature().getClientMachine());
+			System.out.println("Successfully add file "
+					+ inode.getFullPathName()
+					+ ";clientName="
+					+ inode.getFileUnderConstructionFeature().getClientName()
+					+ ";clientMachine="
+					+ inode.getFileUnderConstructionFeature()
+							.getClientMachine());
+			this.getFSNamesystem().getFSDirectory().addToInodeMap(inode);
+		} catch (SnapshotAccessControlException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (FileAlreadyExistsException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (QuotaExceededException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (UnresolvedLinkException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (AclException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+
+	private INodeFile addFile(String path, PermissionStatus permissions,
+			short replication, long preferredBlockSize, String clientName,
+			String clientMachine) throws SnapshotAccessControlException,
+			FileAlreadyExistsException, QuotaExceededException,
+			UnresolvedLinkException, AclException {
+		if (this.getFSNamesystem() != null) {
+			return this.fs.dir.addFile(path, permissions, replication,
+					preferredBlockSize, clientName, clientMachine);
+		}
+		return null;
+	}
+
+	public void saveNamespace() throws AccessControlException, IOException {
+		if (this.getFSNamesystem() != null) {
+			this.fs.enterSafeMode(Boolean.FALSE);
+			this.fs.saveNamespace();
+			this.fs.leaveSafeMode();
+		}
+	}
+
+	/**
+	 * After moved namespace, add overflowing table to that position
+	 * 
+	 * @param ie
+	 */
+	public void addExternalNode(INodeExternalLink ie, INodeDirectory parent) {
+		//System.out.println(ie+"Try to add INodeExternalLink to "+(parent==null)+";"+(parent.getLocalNameBytes().length==0)+";"+parent.isDirectory());
+		if (parent == null) {
+			this.getRoot().asDirectory().addChild(ie);
+
+		} else {
+			parent.addChild(ie);
+
+		}
+		this.fs.dir.addToInodeMap(ie);
+	}
+
+	/**
+	 * Temporary store INodeExternalLink
+	 */
+	private Map<INode,INodeExternalLink> tempMap = new HashMap<INode,INodeExternalLink>();
+
+	/**
+	 * Add the INodeExternalLink to top node
+	 * @param child
+	 * @param link
+	 * @param parent
+	 */
+	public void filterExternalLink(INode child,
+			INodeExternalLink link,INode parent) {
+
+		if (child instanceof INodeExternalLink) {
+			INodeExternalLink existingOne = (INodeExternalLink)child;
+			List<ExternalStorage> esMap = Arrays.asList(link.getEsMap());
+			esMap.addAll(Arrays.asList(existingOne.getEsMap()));
+			ExternalStorage[] temp = new ExternalStorage[esMap.size()];
+			esMap.toArray(temp);
+			link.setEsMap(temp);
+			if(parent!=null) parent.asDirectory().removeChild(child);
+			tempMap.put(parent, existingOne);
+			return;
+		}
+		if(!child.isDirectory()) return;
+		parent = child;
+		ReadOnlyList<INode> roList = child.asDirectory().getChildrenList(
+				Snapshot.CURRENT_STATE_ID);
+
+		for (int i = 0; i < roList.size(); i++) {
+			filterExternalLink(roList.get(i), link,parent);
+
+		}
+	}
+	
+	/**
+	 * Try to recover after divorce  INodeExternalLink
+	 */
+	public void recoverExternalLink(){
+		if(tempMap!=null){
+			Iterator<Entry<INode, INodeExternalLink>> iter = tempMap.entrySet().iterator(); 
+			while (iter.hasNext()) {
+				Entry<INode, INodeExternalLink> entry = iter.next(); 
+				INode parent = entry.getKey(); 
+				INodeExternalLink iel = entry.getValue();
+				parent.asDirectory().addChild(iel);
+			}
+		}
+	}
+
+	public boolean deletePath(String path) {
+		boolean temp = false;
+		if (this.getFSNamesystem() != null) {
+			this.fs.writeLock();
+			try {
+				List<INode> removedINodes = new ChunkedArrayList<INode>();
+				BlocksMapUpdateInfo collectedBlocks = new BlocksMapUpdateInfo();
+				long mtime = Time.now();
+				long del = this.fs.getFSDirectory().delete(path,
+						collectedBlocks, removedINodes, mtime);
+				System.out.println("Delete file from path " + path
+						+ ";Succeed delete files count is " + del);
+				if (del < 0) {
+					return temp;
+				}
+				this.fs.getEditLog().logDelete(path, mtime, Boolean.FALSE);
+				
+				// Blocks/INodes will be handled later
+				this.fs.removePathAndBlocks(path, null, removedINodes, true);
+				this.fs.getEditLog().logSync();
+				this.fs.removeBlocks(collectedBlocks); // Incremental deletion
+														// of blocks
+				collectedBlocks.clear();
+
+				this.fs.incrDeletedFileCount(del);
+				temp = true;
+			} catch (AccessControlException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+				System.out.println("AccessControlException="+e.getMessage());
+			} catch (SafeModeException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+				System.out.println("SafeModeException="+e.getMessage());
+			} catch (UnresolvedLinkException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+				System.out.println("UnresolvedLinkException="+e.getMessage());
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+				System.out.println("IOException="+e.getMessage());
+			} finally {
+				this.fs.writeUnlock();
+			}
+		}
+		return temp;
+	}
+
+	//private OverflowTable overflowTable;
+	
+	public OverflowTable buildOrAddBST(ExternalStorage[] es){
+		String key = OverflowTable.getNaturalRootFromFullPath(es[0].getPath());
+		log("[NamenodeDummy] buildOrAddBST: Get key "+key);
+		if(ROOT.get(key) == null)
+		  ROOT.put(key, OverflowTable.buildOrAddBST(es,null));
+		else
+		  OverflowTable.buildOrAddBST(es,ROOT.get(key));
+		return ROOT.get(key);
+	}
+	
+	public String getThefirstNN(String key){
+		OverflowTable ot = ROOT.get(OverflowTable.getNaturalRootFromFullPath(key));
+		if(ot == null) return null;
+		OverflowTableNode o;
+		
+		return (o = ot.findNode(key, false, false)) == null ? null:(o.getValue()==null?null:o.getValue().getTargetNNServer());
+		
+	}
+	
+	public void buildExternalLinkMap_OLD(ExternalStorage[] es){
+		ExternalStorageMapping.addToMap(es);
+	}
+	
+	public ExternalStorage findExternalNN_OLD(String key,boolean ifRecursive){
+		
+		if(key == null || key.length() == 0) return null;
+		ExternalStorage temp = ExternalStorageMapping.getExternalStorage(key);
+		if(temp!=null){
+			System.out.println("[NameNodeDummy]Found path from overflowing table = "+ key+";"+temp);
+			return temp;
+		}
+		if(key.indexOf('/')<0) return null;
+		if(ifRecursive){
+		key = key.substring(0,key.lastIndexOf('/'));
+		return findExternalNN_OLD(key,ifRecursive);
+		}
+		return null;
+	}
+	
+	public boolean removeExternalNN(String key){
+		OverflowTable ot = ROOT.get(OverflowTable.getNaturalRootFromFullPath(key));
+		if(ot == null) return false;
+		return ot.remove(key) == null ? false:true;
+		}
+	
+	public static boolean removeExternalNN_OLD(String key){
+		if(ExternalStorageMapping.removeExternalStorage(key)!=null) return true;
+		return false;
+	}
+	
+	public ExternalStorage[] findExternalNN(String path){
+		log("[NameNodeDummy] findExternalNN: Try to find "+path);
+		if(NameNodeDummy.isNullOrBlank(path)) return null;
+		path = path.trim();
+		OverflowTable ot = ROOT.get(OverflowTable.getNaturalRootFromFullPath(path));
+		if("/".equals(path)) return getExternalStorageFromRoot();
+		if(ot==null) return null;
+		OverflowTableNode found = ot.findNode(path, false, false);
+		if(found == null) return null;
+		return ot.getAllChildren(found);
+	}
+	
+	public ExternalStorage[] findExternalNN_OLD(String key){
+		log("[NameNodeDummy] findExternalNN_OLD: Try to find "+key);
+		if(key == null || key.length() == 0) return null;
+		if("/".equals(key)) return ExternalStorageMapping.findAll();
+		ExternalStorage es = this.findExternalNN_OLD(key, false);
+		/**
+		 * If path existing in overflowing table, might have possible in other NNs; otherwise only on one single NN.
+		 */
+		if(es!=null){
+			ExternalStorage[] ess = ExternalStorageMapping.findByParentId(es.getId());
+			ExternalStorage[] ess2 = new ExternalStorage[ess.length+1];
+			System.arraycopy(ess, 0, ess2, 1, ess.length);
+			ess2[0] = es;
+			return ess2;
+		}
+		else{
+			es = findExternalNN_OLD(key,true);
+			return es == null ? null:new ExternalStorage[]{es};
+		}
+	}
+	
+	/**
+	 * Send update information to namenode in order to update overflowing table.
+	 * @param sourceNN
+	 * @param out
+	 * @param newTargetNN
+	 * @param oldTargetNN
+	 * @param srcs
+	 */
+	public void sendToNN(String sourceNN,JspWriter out,String newTargetNN,String oldTargetNN,String[] srcs){
+
+		INodeClient client = INodeClient.getInstance(sourceNN, NameNodeDummy.TCP_PORT, NameNodeDummy.UDP_PORT);
+		try {
+			client.connect();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		UpdateRequest u = new UpdateRequest(sourceNN,newTargetNN,oldTargetNN,srcs);
+		client.sendTCP(u, out);
+		
+	}
+	
+	public static void main(String[] args){
+		System.out.println(NameNodeDummy.getNameNodeDummyInstance().findExternalNN_OLD("/data1/test/tt",true));
+		System.out.println(NameNodeDummy.isNullOrBlank(new Object[0]));
+		System.out.println("a".equals(null));
+	}
+	public Map<String,String> getMap() {
+		return map;
+	}
+	public void setMap(Map<String,String> map) {
+		this.map = map;
 	}
 
 }

@@ -25,6 +25,7 @@ import org.apache.hadoop.hdfs.server.namenode.NameNodeDummy;
 import org.apache.hadoop.hdfs.server.namenode.Quota;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 import org.apache.hadoop.hdfs.util.ReadOnlyList;
+import org.apache.hadoop.security.AccessControlException;
 import org.apache.hadoop.util.Time;
 import org.objenesis.strategy.StdInstantiatorStrategy;
 
@@ -46,13 +47,18 @@ import com.esotericsoftware.kryonet.Server;
 public class INodeServer extends Thread {
 	public static final Log LOG = LogFactory
 			.getLog(INodeServer.class.getName());
+	public final static String PREFIX = "distr_from_";
 	public final static int WRITE_BUFFER = 1000 * 1000 * 3;
 	public final static int OBJECT_BUFFER = 1000 * 1000 * 3;
-	public final static int KEEP_ALIVE = 20 * 1000;
+	public final static String DUMMY = "dummy";
+	public final static int TIME_OUT = 10 * 1000;
+	public final static int KEEP_ALIVE = 10 * 1000;
 	private INodeDirectory parent = null;
 	private static INodeDirectory root = null;
 	private static int TCP_PORT = 8019;
 	private static int UDP_PORT = 18019;
+	private final static PermissionStatus perm = new PermissionStatus(DUMMY, DUMMY,
+			FsPermission.getDefault());
 	private NameNodeDummy nameNodeDummy;
 
 	public INodeServer(NameNode nn) {
@@ -81,8 +87,38 @@ public class INodeServer extends Thread {
 					this.response(connection, object);
 				} else if (object instanceof MapRequest) {
 					this.handleMapRequest(connection, object);
+				} else if (object instanceof UpdateRequest) {
+					this.handleOverflowTableUpdate(connection, object);
 				}
 
+			}
+
+			private void handleOverflowTableUpdate(Connection connection, Object object){
+				UpdateRequest request = (UpdateRequest) object;
+				String[] srcs = request.getSrcs();
+				for(int i=0;i<srcs.length;i++){
+					ExternalStorage es = NameNodeDummy.getNameNodeDummyInstance().findExternalNN_OLD(srcs[i],false);
+					if(es == null) System.out.println("Error!!! Cannot find giving path "+srcs[i]);
+					//If metadata belong to the same NN
+					if(request.getNewTargetNN().equals(NameNodeDummy
+							.getNameNodeDummyInstance()
+							.getNamenodeAddress().getHostName())){
+						System.out.println(es.getPath() + "[INodeServer]handleOverflowTableUpdate: Found useless table:"+srcs[i]+"; from "+es.getTargetNNServer() + " to "+request.getNewTargetNN());	
+						NameNodeDummy
+						.getNameNodeDummyInstance().removeExternalNN(es.getPath());
+						continue;
+					}
+					
+					es.setMoveTime(Time.now());
+					System.out.println("[INodeServer]handleOverflowTableUpdate: update metadat:"+srcs[i]+"; from "+es.getTargetNNServer() + " to "+request.getNewTargetNN());
+					es.setTargetNNServer(request.getNewTargetNN());
+					}
+			}
+			
+			
+			public void disconnected(Connection c) {
+				System.out.println("Disconnected be invoked!");
+				super.disconnected(c);
 			}
 
 			public void response(Connection connection, Object object) {
@@ -94,7 +130,7 @@ public class INodeServer extends Thread {
 						+ response.getPoolId());
 			}
 
-			public void handleMapRequest(Connection connection, Object object) {
+			private void handleMapRequest(Connection connection, Object object) {
 				MapRequest request = (MapRequest) object;
 				map.put(request.getKey(), request.getSubtree());
 				if (parent == null) {
@@ -108,65 +144,120 @@ public class INodeServer extends Thread {
 				if (request.getSize() == map.size()) {
 					SplitTree splitTree = new SplitTree();
 					INode inode = splitTree.mergeListToINode(map);
+					
 					System.out.println("After merged: inode = "
 							+ inode.getFullPathName());
-					this.addBlockMap(inode);
-					if (parent != null){
-						//parent.addChild(inode);
-						this.recursiveAddNode(inode,parent);
+					// this.addBlockMap(inode);
+					if (parent != null) {
+						// parent.addChild(inode);
+						this.recursiveAddNode(inode, parent);
 					}
 					System.out.println(Tools.display(inode, 10, true));
-
+					System.out.println("Server received all the data!");
+					this.finalResponse(connection);
+					try {
+						NameNodeDummy.getNameNodeDummyInstance()
+								.saveNamespace();
+						System.out.println("Force saved the namespace!!");
+					} catch (AccessControlException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					} catch (IOException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
 				}
 			}
-			
+
+			private void finalResponse(Connection connection) {
+				ClientCommends cc = new ClientCommends();
+				cc.setCommand(0);
+				connection.sendTCP(cc);
+			}
+			//waitForLoadingFSImage();
 			/**
-			 * If the sub-tree existing on the target NN, will recursively add diff one
+			 * If the sub-tree existing on the target NN, will recursively add
+			 * diff one
+			 * 
 			 * @param child
 			 */
-            private void recursiveAddNode(INode child,INodeDirectory parent){
-            	if(child.isFile()){
-            		parent.addChild(child);
-            		child.setParent(parent);
-            		return;
-            	}
-            	INode temp = parent.getChild(
-						DFSUtil.string2Bytes(child.getLocalName()), Snapshot.CURRENT_STATE_ID);
-            	if (temp != null) {
+			private void recursiveAddNode(INode child, INodeDirectory parent) {
+				
+				INode temp = parent.getChild(
+						DFSUtil.string2Bytes(child.getLocalName()),
+						Snapshot.CURRENT_STATE_ID);
+				if (child.isFile()) {
+					if (temp == null) {
+						parent.addChild(child);
+						this.addINodeToMap(child);
+						NameNodeDummy.getNameNodeDummyInstance().addINode(
+								child.asFile());
+						NameNode.getNameNodeMetrics().incrFilesCreated();
+						NameNode.getNameNodeMetrics().incrCreateFileOps();
+					}
+					return;
+				}
+				boolean isLoop = false;
+				if (temp != null) {
 					LOG.info("Found path existing , ignore "
 							+ child.getFullPathName());
-					parent = (temp.isDirectory()?temp.asDirectory():parent);
-					ReadOnlyList<INode> roList = child.asDirectory().getChildrenList(
-	        				Snapshot.CURRENT_STATE_ID);
-	        		for (int i = 0; i < roList.size(); i++) {			
-	        			recursiveAddNode(roList.get(i),parent);
-	        		}
-            	} else {
-            		parent.addChild(child);
-            		child.setParent(parent);
-            		return;
-            	}
-            }
+					parent = (temp.isDirectory() ? temp.asDirectory() : parent);
+					isLoop = true;
+				} else {
 
-			public void handleINode(Connection connection, Object object) {
+					System.out.println("====" + child.getId()
+							//+ ";child.getParent.getFullPathName()=" + child.getParent().getFullPathName()
+							+ ";child.getGroupName()=" + child.getFullPathName());
+					/** Ignore Namespace (servername) **/
+					//if (child.getId() == 1&&child.getLocalName().startsWith(PREFIX)) {
+						//isLoop = true;
+					//} else {
+					if(child.getLocalName().endsWith(NameNodeDummy
+								.getNameNodeDummyInstance()
+								.getNamenodeAddress().getHostName())){
+						System.out.println("[INodeServer] Found transfer metadata back again:" + child.getFullPathName());
+						isLoop = true;
+					} else {
+						parent.addChild(child);
+						this.addChildren(child);
+						NameNode.getNameNodeMetrics().incrFilesCreated();
+						NameNode.getNameNodeMetrics().incrCreateFileOps();
+						return;
+					}
+
+				}
+				if(isLoop){
+				ReadOnlyList<INode> roList = child.asDirectory()
+						.getChildrenList(Snapshot.CURRENT_STATE_ID);
+				for (int i = 0; i < roList.size(); i++) {
+					recursiveAddNode(roList.get(i), parent);
+				}
+				}
+			}
+
+			private void handleINode(Connection connection, Object object) {
 				INode request = (INode) object;
 				System.out.println("Size:"
 						+ request.asDirectory().computeQuotaUsage()
 								.get(Quota.NAMESPACE));
 				if (parent != null) {
-					parent.addChild(
-							request.asDirectory()
-									.getChildrenList(Snapshot.CURRENT_STATE_ID)
-									.get(0).asDirectory());
+					parent.addChild(request.asDirectory()
+							.getChildrenList(Snapshot.CURRENT_STATE_ID).get(0)
+							.asDirectory());
 					System.out.println("Append parent "
 							+ parent.getFullPathName() + ":"
 							+ parent.getFsPermissionShort());
 				}
 			}
 
-			private void addBlockMap(INode inode) {
+			/**
+			 * 
+			 * @param inode
+			 */
+			private void addChildren(INode inode) {
 
 				if (inode.isFile()) {
+					this.addINodeToMap(inode);
 					this.updateBlocksMap(inode.asFile());
 					return;
 				}
@@ -175,8 +266,10 @@ public class INodeServer extends Thread {
 						.getChildrenList(Snapshot.CURRENT_STATE_ID);
 
 				for (int i = 0; i < roList.size(); i++) {
-					addBlockMap(roList.get(i));
+					addChildren(roList.get(i));
 				}
+
+				this.addINodeToMap(inode);
 			}
 
 			public void updateBlocksMap(INodeFile file) {
@@ -195,8 +288,31 @@ public class INodeServer extends Thread {
 				}
 			}
 
-			public void handleMoveNSRequest(Connection connection, Object object) {
+			private void addINodeToMap(INode inode) {
+				NameNodeDummy.getNameNodeDummyInstance().getFSNamesystem()
+						.getFSDirectory().addToInodeMap(inode);
+			}
+
+			private void createDummyFolder(String server, MoveNSRequest request) {
+				server = PREFIX + server;
+				INode temp = root.getChild(DFSUtil.string2Bytes(server),
+						Snapshot.CURRENT_STATE_ID);
+				if (temp != null) {
+					parent = temp.asDirectory();
+					return;
+				}
+				
+				INodeDirectory root2 = new INodeDirectory(1, DFSUtil
+						.string2Bytes(server), perm, Time.now());
+				root.addChild(root2);
+				this.addINodeToMap(root2);
+				parent = root2.asDirectory();
+
+			}
+
+			private void handleMoveNSRequest(Connection connection, Object object) {
 				MoveNSRequest request = (MoveNSRequest) object;
+
 				if (root == null)
 					root = nameNodeDummy.getRoot().asDirectory();
 				parent = root;
@@ -204,13 +320,18 @@ public class INodeServer extends Thread {
 					int loop = request.getId().size() - 1;
 					if (loop < 0)
 						loop = 0;
-
+					/**
+					 * Avoid create duplicate namespace after first move
+					 */
+					if(request.getNamespace()==null)
+					this.createDummyFolder(connection.getRemoteAddressTCP()
+							.getHostName(), request);
 					for (int k = loop; k > 0; k--) {
 
 						// if(parent.isDirectory()){
-						INode child = parent.getChild(
-								DFSUtil.string2Bytes(request.getLocalName()
-										.get(k)), Snapshot.CURRENT_STATE_ID);
+						INode child = parent.getChild(DFSUtil
+								.string2Bytes(request.getLocalName().get(k)),
+								Snapshot.CURRENT_STATE_ID);
 						if (child != null) {
 							LOG.info("Found path existing , ignore "
 									+ child.getFullPathName());
@@ -223,17 +344,18 @@ public class INodeServer extends Thread {
 								.getUser().get(k), request.getGroup().get(k),
 								FsPermission.createImmutable(request.getMode()
 										.get(k)));
-						child = new INodeDirectory(
-								request.getId().get(k), DFSUtil
-										.string2Bytes(request.getLocalName()
-												.get(k)), perm, request
-										.getMtime().get(k));
+						child = new INodeDirectory(request.getId().get(k),
+								DFSUtil.string2Bytes(request.getLocalName()
+										.get(k)), perm, request.getMtime().get(
+										k));
 						// tmp.setAccessTime(request.getAccessTime().get(k));
 						child.setAccessTime(Time.now());
 						LOG.info("Adding node local name="
 								+ child.getFullPathName() + " to "
 								+ parent.getFullPathName());
 						parent.addChild(child);
+						this.addINodeToMap(child);
+						child.setParent(parent);
 						parent = child.asDirectory();
 					}
 
@@ -276,11 +398,23 @@ public class INodeServer extends Thread {
 	private static void registerClass(Kryo kryo) {
 		kryo.register(INodeDirectory.class);
 		kryo.register(INodeFile.class);
+		/**
+		kryo.register(org.apache.hadoop.hdfs.server.namenode.INodeExternalLink.class);
+		kryo.register(ExternalStorageMapping.class);
+		kryo.register(ExternalStorage.class);
+		**/
 		kryo.register(org.apache.hadoop.hdfs.server.namenode.dummy.MoveNSRequest.class);
+		
+		kryo.register(String[].class);
+		kryo.register(org.apache.hadoop.hdfs.server.namenode.dummy.UpdateRequest.class);
+		kryo.register(org.apache.hadoop.hdfs.server.namenode.FileUnderConstructionFeature.class); 
+		
+		
+		kryo.register(org.apache.hadoop.hdfs.server.namenode.dummy.ClientCommends.class);
 		kryo.register(java.util.ArrayList.class);
 		kryo.register(org.apache.hadoop.hdfs.server.namenode.INode.Feature[].class);
 		kryo.register(byte[].class);
-
+		
 		kryo.register(org.apache.hadoop.hdfs.server.namenode.dummy.MapRequest.class);
 		kryo.register(org.apache.hadoop.hdfs.server.namenode.dummy.SubTree.class);
 

@@ -287,6 +287,20 @@ message LocatedBlocksProto {
   optional FileEncryptionInfoProto fileEncryptionInfo = 6;
 }
 
+
+/**
+ * Name: ExternalStorageMap
+ */
+message ExternalStorageMap {
+  required uint32 parentId = 1;
+  required uint32 id = 2;
+  required string sourceNNServer = 3;
+  required string targetNNServer = 4;
+  required string targetNNPId = 5;
+  required string path = 6;
+  required uint64 moveTime = 7;
+}
+
 /**
  * Status of a file, directory or symlink
  * Optionally includes a file's block locations if requested by client on the rpc call.
@@ -296,6 +310,7 @@ message HdfsFileStatusProto {
     IS_DIR = 1;
     IS_FILE = 2;
     IS_SYMLINK = 3;
+    IS_EXTERNALLINK = 4;
   }
   required FileType fileType = 1;
   required bytes path = 2;          // local name of inode encoded java UTF8
@@ -321,6 +336,9 @@ message HdfsFileStatusProto {
   optional FileEncryptionInfoProto fileEncryptionInfo = 15;
 
   optional uint32 storagePolicy = 16 [default = 0]; // block storage policy id
+  
+  
+  repeated ExternalStorageMap es = 17; //External link to another NN
 } 
 
 /**

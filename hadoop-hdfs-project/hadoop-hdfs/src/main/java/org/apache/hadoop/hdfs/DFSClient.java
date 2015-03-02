@@ -84,6 +84,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -189,6 +190,7 @@ import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenIdentifie
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants;
 import org.apache.hadoop.hdfs.server.datanode.CachingStrategy;
 import org.apache.hadoop.hdfs.server.namenode.NameNode;
+import org.apache.hadoop.hdfs.server.namenode.NameNodeDummy;
 import org.apache.hadoop.hdfs.server.namenode.SafeModeException;
 import org.apache.hadoop.hdfs.server.protocol.DatanodeStorageReport;
 import org.apache.hadoop.hdfs.util.ByteArrayManager;
@@ -601,6 +603,32 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
     this(nameNodeUri, null, conf, stats);
   }
   
+  private static Map<String,DFSClient> dfsPool = new ConcurrentHashMap<String,DFSClient>();
+
+  public static DFSClient getDfsclient(String host) {
+	if(NameNodeDummy.isNullOrBlank(host)) return null;
+	return dfsPool.get(removeDomain(host));
+  }
+
+  public static void addDfsclient(String host,DFSClient client) {
+	host = removeDomain(host);
+	if(dfsPool.get(host)!=null) dfsPool.remove(host);
+	dfsPool.put(host, client);
+  }
+  
+  /**
+   * Should remove domain in case they are not match?
+   * abc.google.com, only store abc.
+   * @param host
+   * @return
+   */
+  private static String removeDomain(String host){
+	  if(host == null) return null;
+	  int i = -1;
+	  if((i = host.indexOf('.')) < 0 || host.startsWith("www")) return host;
+	  return host.substring(0, i);
+  }
+  
   /** 
    * Create a new DFSClient connected to the given nameNodeUri or rpcNamenode.
    * If HA is enabled and a positive value is set for 
@@ -622,7 +650,10 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
     this.stats = stats;
     this.socketFactory = NetUtils.getSocketFactory(conf, ClientProtocol.class);
     this.dtpReplaceDatanodeOnFailure = ReplaceDatanodeOnFailure.get(conf);
-
+    if(NameNodeDummy.useDistributedNN){
+      NameNodeDummy.log("[DFSClient] host = "+nameNodeUri.getHost());
+      addDfsclient(nameNodeUri.getHost(), this);
+    }
     this.ugi = UserGroupInformation.getCurrentUser();
     
     this.authority = nameNodeUri == null? "null": nameNodeUri.getAuthority();
@@ -3191,4 +3222,5 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
   public SaslDataTransferClient getSaslDataTransferClient() {
     return saslClient;
   }
+
 }

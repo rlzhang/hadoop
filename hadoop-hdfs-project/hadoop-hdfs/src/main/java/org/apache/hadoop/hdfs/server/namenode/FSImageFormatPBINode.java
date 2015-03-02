@@ -30,15 +30,16 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.HadoopIllegalArgumentException;
 import org.apache.hadoop.classification.InterfaceAudience;
+import org.apache.hadoop.fs.XAttr;
 import org.apache.hadoop.fs.permission.AclEntry;
 import org.apache.hadoop.fs.permission.AclEntryScope;
 import org.apache.hadoop.fs.permission.AclEntryType;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.fs.permission.PermissionStatus;
-import org.apache.hadoop.fs.XAttr;
 import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.BlockProto;
+import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.ExternalStorageMap;
 import org.apache.hadoop.hdfs.protocolPB.PBHelper;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfo;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfoUnderConstruction;
@@ -52,6 +53,7 @@ import org.apache.hadoop.hdfs.server.namenode.FsImageProto.INodeSection;
 import org.apache.hadoop.hdfs.server.namenode.FsImageProto.INodeSection.AclFeatureProto;
 import org.apache.hadoop.hdfs.server.namenode.FsImageProto.INodeSection.XAttrCompactProto;
 import org.apache.hadoop.hdfs.server.namenode.FsImageProto.INodeSection.XAttrFeatureProto;
+import org.apache.hadoop.hdfs.server.namenode.dummy.ExternalStorage;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 import org.apache.hadoop.hdfs.util.ReadOnlyList;
 
@@ -214,6 +216,7 @@ public final class FSImageFormatPBINode {
       LOG.info("Loading " + s.getNumInodes() + " INodes.");
       for (int i = 0; i < s.getNumInodes(); ++i) {
         INodeSection.INode p = INodeSection.INode.parseDelimitedFrom(in);
+    	LOG.info(p+"Loading "+i);//Test Only!
         if (p.getId() == INodeId.ROOT_INODE_ID) {
           loadRootINode(p);
         } else {
@@ -242,6 +245,7 @@ public final class FSImageFormatPBINode {
     }
 
     private void addToParent(INodeDirectory parent, INode child) {
+      LOG.info(">>>addToParent:"+parent+":"+child);
       if (parent == dir.rootDir && FSDirectory.isReservedName(child)) {
         throw new HadoopIllegalArgumentException("File name \""
             + child.getLocalName() + "\" is reserved. Please "
@@ -267,6 +271,8 @@ public final class FSImageFormatPBINode {
         return loadINodeDirectory(n, parent.getLoaderContext());
       case SYMLINK:
         return loadINodeSymlink(n);
+      case EXTERNALLINK:
+        return loadINodeExternalLink(n);
       default:
         break;
       }
@@ -327,6 +333,24 @@ public final class FSImageFormatPBINode {
           s.getTarget().toStringUtf8());
       return sym;
     }
+    
+    private INodeExternalLink loadINodeExternalLink(INodeSection.INode e) {
+        assert e.getType() == INodeSection.INode.Type.EXTERNALLINK;
+        INodeSection.INodeExternalLink s = e.getExternallink();
+        List<ExternalStorageMap> esMap = s.getEsMapList();
+        ExternalStorage[] externalStorages = new ExternalStorage[esMap.size()];
+        for (int i = 0, e1 = esMap.size(); i < e1; ++i) {
+        	ExternalStorageMap t = esMap.get(i);
+        	externalStorages[i] = new ExternalStorage(t.getParentId(),t.getId(),t.getTargetNNServer(),t.getTargetNNPId(),t.getPath(),t.getSourceNNServer());
+        	System.out.println("[read fsimage]loadINodeExternalLink:ExternalStorage:"+externalStorages[i].toString());
+        }
+        NameNodeDummy.getNameNodeDummyInstance().buildOrAddBST(externalStorages);
+        final PermissionStatus permissions = loadPermission(s.getPermission(),
+            parent.getLoaderContext().getStringTable());
+        INodeExternalLink iel = INodeExternalLink.getInstanceFromExisting(e.getId(), e.getName().toByteArray(), permissions, s.getModificationTime(), s.getAccessTime(), externalStorages);
+
+        return iel;
+      }
 
     private void loadRootINode(INodeSection.INode p) {
       INodeDirectory root = loadINodeDirectory(p, parent.getLoaderContext());
@@ -525,7 +549,9 @@ public final class FSImageFormatPBINode {
         save(out, n.asFile());
       } else if (n.isSymlink()) {
         save(out, n.asSymlink());
-      }
+      } else if (n.isExternalLink()) {
+        save(out, n.asExternalLink());
+      } 
     }
 
     private void save(OutputStream out, INodeDirectory n) throws IOException {
@@ -573,6 +599,25 @@ public final class FSImageFormatPBINode {
           .setType(INodeSection.INode.Type.SYMLINK).setSymlink(b).build();
       r.writeDelimitedTo(out);
     }
+    
+    private void save(OutputStream out, INodeExternalLink n) throws IOException {
+        SaverContext state = parent.getSaverContext();
+        INodeSection.INodeExternalLink.Builder b = INodeSection.INodeExternalLink
+            .newBuilder()
+            .setPermission(buildPermissionStatus(n, state.getStringMap()))
+            .setModificationTime(n.getModificationTime())
+            .setAccessTime(n.getAccessTime());
+        System.out.println("[save fsimage]save INodeExternalLink:getEsMap():"+n.getEsMap().length);
+        if (n.getEsMap() != null) {
+            for (ExternalStorage es : n.getEsMap()) {
+              System.out.println("[save fsimage]save INodeExternalLink:ExternalStorage"+es.toString());
+              b.addEsMap(PBHelper.convert(es));
+            }
+          }
+        INodeSection.INode r = buildINodeCommon(n)
+            .setType(INodeSection.INode.Type.EXTERNALLINK).setExternallink(b).build();
+        r.writeDelimitedTo(out);
+      }
 
     private final INodeSection.INode.Builder buildINodeCommon(INode n) {
       return INodeSection.INode.newBuilder()

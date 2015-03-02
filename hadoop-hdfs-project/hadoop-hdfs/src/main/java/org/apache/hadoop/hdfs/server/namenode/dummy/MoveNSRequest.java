@@ -10,6 +10,7 @@ public class MoveNSRequest {
 	private INodeDirectory parent;
 	/** 0,Send path only;1,Send INode parent; **/
 	private int operation;
+	private String namespace = null;
 
 	// INode directory info
 	private List<Long> id = new ArrayList<Long>();
@@ -107,6 +108,14 @@ public class MoveNSRequest {
 
 	public void addAccessTime(Long accessTime) {
 		this.accessTime.add(accessTime);
+	}
+
+	public String getNamespace() {
+		return namespace;
+	}
+
+	public void setNamespace(String namespace) {
+		this.namespace = namespace;
 	}
 
 }
