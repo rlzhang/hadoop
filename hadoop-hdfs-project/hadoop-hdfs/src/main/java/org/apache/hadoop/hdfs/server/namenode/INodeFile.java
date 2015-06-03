@@ -36,6 +36,7 @@ import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfoUnderConstruction;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockStoragePolicySuite;
 import org.apache.hadoop.hdfs.server.blockmanagement.DatanodeStorageInfo;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.BlockUCState;
+import org.apache.hadoop.hdfs.server.namenode.dummy.ExternalStorage;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.FileDiff;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.FileDiffList;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.FileWithSnapshotFeature;
@@ -56,6 +57,22 @@ public class INodeFile extends INodeWithAdditionalFields
     return valueOf(inode, path, false);
   }
 
+  /**
+   * Test Only!
+   */
+  private static void convertExternalLink(INode inode,String path){
+
+	  if(inode.isExternalLink()){
+		  System.out.println("[INodeFile]convertExternalLink>>>"+path+";inode="+inode);
+		  System.out.println("[INodeFile]"+inode.getFullPathName());
+		  ExternalStorage[] es = inode.asExternalLink().getEsMap();
+		  System.out.println("[INodeFile]convertExternalLink>>>esmap="+es.length);
+		  if(es==null) return;
+		  for(int i=0;i<es.length;i++)
+		  System.out.println("[INodeFile]"+es[i].toString());
+	  }
+  }
+  
   /** Cast INode to INodeFile. */
   public static INodeFile valueOf(INode inode, String path, boolean acceptNull)
       throws FileNotFoundException {
@@ -66,6 +83,7 @@ public class INodeFile extends INodeWithAdditionalFields
         throw new FileNotFoundException("File does not exist: " + path);
       }
     }
+    convertExternalLink(inode,path);
     if (!inode.isFile()) {
       throw new FileNotFoundException("Path is not a file: " + path);
     }

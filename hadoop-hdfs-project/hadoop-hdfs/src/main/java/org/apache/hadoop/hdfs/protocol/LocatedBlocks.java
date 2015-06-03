@@ -24,6 +24,7 @@ import java.util.Comparator;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.fs.FileEncryptionInfo;
+import org.apache.hadoop.hdfs.server.namenode.dummy.ExternalStorage;
 
 /**
  * Collection of blocks with their locations and the file length.
@@ -37,6 +38,8 @@ public class LocatedBlocks {
   private LocatedBlock lastLocatedBlock = null;
   private boolean isLastBlockComplete = false;
   private FileEncryptionInfo fileEncryptionInfo = null;
+  /** Add for distributed NN **/
+  private ExternalStorage[] es;
 
   public LocatedBlocks() {
     fileLength = 0;
@@ -182,5 +185,13 @@ public class LocatedBlocks {
      .append("\n  isLastBlockComplete=").append(isLastBlockComplete)
      .append("}");
     return b.toString();
+  }
+
+  public ExternalStorage[] getEs() {
+	return es;
+  }
+
+  public void setEs(ExternalStorage[] es) {
+	this.es = es;
   }
 }

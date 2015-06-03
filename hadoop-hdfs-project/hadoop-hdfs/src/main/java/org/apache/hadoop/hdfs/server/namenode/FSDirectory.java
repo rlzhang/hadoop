@@ -32,8 +32,8 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-
 import com.google.protobuf.InvalidProtocolBufferException;
+
 import org.apache.hadoop.HadoopIllegalArgumentException;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.conf.Configuration;
@@ -85,6 +85,7 @@ import org.apache.hadoop.hdfs.server.blockmanagement.DatanodeStorageInfo;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.BlockUCState;
 import org.apache.hadoop.hdfs.server.namenode.INode.BlocksMapUpdateInfo;
 import org.apache.hadoop.hdfs.server.namenode.INodeReference.WithCount;
+import org.apache.hadoop.hdfs.server.namenode.dummy.ExternalStorage;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.DirectorySnapshottableFeature;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot.Root;
@@ -95,6 +96,7 @@ import org.apache.hadoop.hdfs.util.ReadOnlyList;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
+
 import org.apache.hadoop.security.AccessControlException;
 
 /**
@@ -1434,6 +1436,9 @@ public class FSDirectory implements Closeable {
       final INode targetNode = inodes[inodes.length - 1];
       if (targetNode == null)
         return null;
+
+      /** Test Only! **/
+      NameNodeDummy.debug("[FSDirectory]getListing:targetNode:"+targetNode.getFullPathName());
       byte parentStoragePolicy = isSuperUser ?
           targetNode.getStoragePolicyID() : BlockStoragePolicySuite.ID_UNSPECIFIED;
       
@@ -1460,6 +1465,18 @@ public class FSDirectory implements Closeable {
         listing[i] = createFileStatus(cur.getLocalNameBytes(), cur, needLocation,
             getStoragePolicyID(curPolicy, parentStoragePolicy), snapshot,
             isRawPath, inodesInPath);
+        /** Add overflowing table **/
+
+        if(NameNodeDummy.useDistributedNN){
+        	if(cur.isExternalLink()){
+        		NameNodeDummy.debug("[FSDirectory]getListing: Found ExternalLink!!! cur:"+cur.getFullPathName());
+        		ExternalStorage[] es = cur.asExternalLink().getEsMap();
+        		if(es!=null){
+        			listing[i].setEs(es);
+        		}
+        	}
+        }
+        
         listingCnt++;
         if (needLocation) {
             // Once we  hit lsLimit locations, stop.
@@ -1517,6 +1534,17 @@ public class FSDirectory implements Closeable {
         listing, snapshots.size() - skipSize - numOfListing);
   }
 
+  /**
+   * Add external namenode information
+   * @param i
+   */
+  private ExternalStorage[] addExternalNN(INode i,String path){
+	  //if(i == null){
+		  return NameNodeDummy.getNameNodeDummyInstance().findExternalNN(path);
+	  //}
+	  //return null;
+  }
+  
   /** Get the file info for a specific file.
    * @param src The string representation of the path to the file
    * @param resolveLink whether to throw UnresolvedLinkException
@@ -1539,9 +1567,34 @@ public class FSDirectory implements Closeable {
       final INode i = inodes[inodes.length - 1];
       byte policyId = includeStoragePolicy && i != null && !i.isSymlink() ?
           i.getStoragePolicyID() : BlockStoragePolicySuite.ID_UNSPECIFIED;
-      return i == null ? null : createFileStatus(HdfsFileStatus.EMPTY_NAME, i,
+          HdfsFileStatus hfs = (i == null ? null : createFileStatus(HdfsFileStatus.EMPTY_NAME, i,
           policyId, inodesInPath.getPathSnapshotId(), isRawPath,
-          inodesInPath);
+          inodesInPath));
+          if (NameNodeDummy.useDistributedNN){
+        	  if (i != null){
+        		  NameNodeDummy.debug("[FSDirectory]:getFileInfo: last INode = " + i.getFullPathName());
+        	  }
+                  
+                if (i !=null && i.isExternalLink())
+                  NameNodeDummy.debug("[FSDirectory]:getFileInfo: Found ExternalLink INode: "+i.getFullPathName()+";getEsMap:"+i.asExternalLink().getEsMap());
+                
+               ExternalStorage[] es = this.addExternalNN(i, srcs);
+               NameNodeDummy.debug("[FSDirectory]:getFileInfo: Path :" + srcs + "; HdfsFileStatus = " + hfs );
+               ExternalStorage[] es2 = new ExternalStorage[1];
+               if (es != null) {
+            	   es2[0] = NameNodeDummy.getNameNodeDummyInstance().findBestMatchInOverflowtable(es, srcs);
+            	   NameNodeDummy.debug("[FSDirectory]:getFileInfo: ES Path matched:" + (es2[0] ==null ? null : es2[0].getPath()));
+            	   if (es2[0] != null) {
+            		   if (hfs == null) {
+                		   hfs = new HdfsFileStatus(es2,srcs);
+                	   } else 
+                		   hfs.setEs(es2);
+            	   }
+            	   
+               }
+               
+          }
+       return hfs;
     } finally {
       readUnlock();
     }
@@ -2401,6 +2454,9 @@ public class FSDirectory implements Closeable {
       boolean needLocation, byte storagePolicy, int snapshot,
       boolean isRawPath, INodesInPath iip)
       throws IOException {
+	  if(NameNodeDummy.useDistributedNN){
+		  NameNodeDummy.debug("[FSdirectory]createFileStatus: needLocation "+needLocation);
+	  }
     if (needLocation) {
       return createLocatedFileStatus(path, node, storagePolicy, snapshot,
           isRawPath, iip);
@@ -3132,6 +3188,7 @@ public class FSDirectory implements Closeable {
 
   /** Check if a given inode name is reserved */
   public static boolean isReservedName(INode inode) {
+	NameNodeDummy.debug(">>>isReservedName:"+inode);  
     return CHECK_RESERVED_FILE_NAMES
             && Arrays.equals(inode.getLocalNameBytes(), DOT_RESERVED);
   }

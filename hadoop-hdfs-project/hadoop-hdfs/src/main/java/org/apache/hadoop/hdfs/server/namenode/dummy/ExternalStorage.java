@@ -4,6 +4,7 @@ import org.apache.hadoop.util.Time;
 
 /**
  * Path -> Namenode
+ * The real overflow table
  * @author Ray Zhang
  *
  */
@@ -18,6 +19,9 @@ public class ExternalStorage implements Comparable<ExternalStorage>{
 	private String targetNNServer;
 	private String targetNNPId;
 	private String path;
+	// 1, move one subtree, 2, hash move.
+	private int type = 1;
+	private int hashValue;
 	private long moveTime;
 	
 	public ExternalStorage(int id,String targetNNServer,String targetNNPId,String path,String sourceNNServer){
@@ -29,7 +33,7 @@ public class ExternalStorage implements Comparable<ExternalStorage>{
 		this.sourceNNServer = sourceNNServer;
 	}
 	
-	public ExternalStorage(int pid,int id,String targetNNServer,String targetNNPId,String path,String sourceNNServer){
+  public ExternalStorage(int pid,int id,String targetNNServer,String targetNNPId,String path,String sourceNNServer){
 		this.parentId = pid;
 		this.id = id;
 		this.targetNNPId = targetNNPId;
@@ -102,6 +106,22 @@ public class ExternalStorage implements Comparable<ExternalStorage>{
 	@Override
 	public int compareTo(ExternalStorage es) {
 		return this.path.compareTo(es.getPath());
+	}
+
+	public int getType() {
+		return type;
+	}
+
+	public void setType(int type) {
+		this.type = type;
+	}
+
+	public int getHashValue() {
+		return hashValue;
+	}
+
+	public void setHashValue(int hashValue) {
+		this.hashValue = hashValue;
 	}
 
 

@@ -187,7 +187,6 @@ import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.ReplicaState;
 import org.apache.hadoop.hdfs.server.common.StorageInfo;
 import org.apache.hadoop.hdfs.server.namenode.CheckpointSignature;
 import org.apache.hadoop.hdfs.server.namenode.INodeId;
-import org.apache.hadoop.hdfs.server.namenode.NameNodeDummy;
 import org.apache.hadoop.hdfs.server.namenode.dummy.ExternalStorage;
 import org.apache.hadoop.hdfs.server.protocol.BalancerBandwidthCommand;
 import org.apache.hadoop.hdfs.server.protocol.BlockCommand;
@@ -1495,7 +1494,6 @@ public class PBHelper {
     		es[i] = PBHelper.convert(fs.getEsList().get(i));
     	hdfsFileStatus.setEs(es);
     }
-    NameNodeDummy.log("[PBHelper]convert:fs.getFileType()="+fs.getFileType());
     hdfsFileStatus.setIfTryNext(fs.getFileType().equals(FileType.IS_EXTERNALLINK));
     return hdfsFileStatus;
   }

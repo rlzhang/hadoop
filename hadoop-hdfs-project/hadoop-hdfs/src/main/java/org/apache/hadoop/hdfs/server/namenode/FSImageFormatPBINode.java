@@ -142,6 +142,21 @@ public final class FSImageFormatPBINode {
       return b.build();
     }
 
+    public static INodeDirectory loadINodeDirectoryForDistrNN(INodeSection.INode n) {
+          assert n.getType() == INodeSection.INode.Type.DIRECTORY;
+          INodeSection.INodeDirectory d = n.getDirectory();
+
+          PermissionStatus p = new PermissionStatus("test","test", new FsPermission((short)00755));
+          final INodeDirectory dir = new INodeDirectory(n.getId(), n.getName()
+              .toByteArray(), p, d.getModificationTime());
+
+          final long nsQuota = d.getNsQuota(), dsQuota = d.getDsQuota();
+          if (nsQuota >= 0 || dsQuota >= 0) {
+            dir.addDirectoryWithQuotaFeature(nsQuota, dsQuota);
+          }
+          return dir;
+        }
+    
     public static INodeDirectory loadINodeDirectory(INodeSection.INode n,
         LoaderContext state) {
       assert n.getType() == INodeSection.INode.Type.DIRECTORY;
@@ -187,6 +202,12 @@ public final class FSImageFormatPBINode {
       this.dir = fsn.dir;
       this.parent = parent;
     }
+    
+    Loader(final FSImageFormatProtobuf.Loader parent) {
+        this.fsn = null;
+        this.dir = null;
+        this.parent = parent;
+      }
 
     void loadINodeDirectorySection(InputStream in) throws IOException {
       final List<INodeReference> refList = parent.getLoaderContext()
@@ -263,7 +284,7 @@ public final class FSImageFormatPBINode {
       }
     }
 
-    private INode loadINode(INodeSection.INode n) {
+    public INode loadINode(INodeSection.INode n) {
       switch (n.getType()) {
       case FILE:
         return loadINodeFile(n);
@@ -278,7 +299,24 @@ public final class FSImageFormatPBINode {
       }
       return null;
     }
+    
+    
 
+    public INode loadINodeForDistrNN(INodeSection.INode n) {
+        switch (n.getType()) {
+        case FILE:
+          return loadINodeFile(n);
+        case DIRECTORY:
+          return this.loadINodeDirectoryForDistrNN(n);
+        case SYMLINK:
+          return loadINodeSymlink(n);
+        case EXTERNALLINK:
+          return loadINodeExternalLink(n);
+        default:
+          break;
+        }
+        return null;
+      }
     private INodeFile loadINodeFile(INodeSection.INode n) {
       assert n.getType() == INodeSection.INode.Type.FILE;
       INodeSection.INodeFile f = n.getFile();
@@ -371,7 +409,7 @@ public final class FSImageFormatPBINode {
   }
 
   public final static class Saver {
-    private static long buildPermissionStatus(INodeAttributes n,
+     static long buildPermissionStatus(INodeAttributes n,
         final SaverContext.DeduplicationMap<String> stringMap) {
       long userId = stringMap.getId(n.getUserName());
       long groupId = stringMap.getId(n.getGroupName());
@@ -456,6 +494,22 @@ public final class FSImageFormatPBINode {
       }
       return b;
     }
+    
+    /**
+     * For distributed name node
+     * @param dir
+     * @return
+     */
+    public static INodeSection.INodeDirectory.Builder buildINodeDirectory(
+            INodeDirectoryAttributes dir) {
+          Quota.Counts quota = dir.getQuotaCounts();
+          INodeSection.INodeDirectory.Builder b = INodeSection.INodeDirectory
+              .newBuilder().setModificationTime(dir.getModificationTime())
+              .setNsQuota(quota.get(Quota.NAMESPACE))
+              .setDsQuota(quota.get(Quota.DISKSPACE))
+              .setPermission(dir.getPermissionLong());
+          return b;
+        }
 
     private final FSNamesystem fsn;
     private final FileSummary.Builder summary;
@@ -619,7 +673,7 @@ public final class FSImageFormatPBINode {
         r.writeDelimitedTo(out);
       }
 
-    private final INodeSection.INode.Builder buildINodeCommon(INode n) {
+    public final INodeSection.INode.Builder buildINodeCommon(INode n) {
       return INodeSection.INode.newBuilder()
           .setId(n.getId())
           .setName(ByteString.copyFrom(n.getLocalNameBytes()));

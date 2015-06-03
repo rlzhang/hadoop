@@ -6,116 +6,134 @@ import java.util.List;
 import org.apache.hadoop.hdfs.server.namenode.INodeDirectory;
 
 public class MoveNSRequest {
-	private String msg;
-	private INodeDirectory parent;
-	/** 0,Send path only;1,Send INode parent; **/
-	private int operation;
-	private String namespace = null;
+  private String msg;
+  private INodeDirectory parent;
+  /** 0,Send path only;1,Send INode parent; **/
+  private int operation;
+  private String namespace = null;
 
-	// INode directory info
-	private List<Long> id = new ArrayList<Long>();
-	private String fullPath;
-	private List<String> localName = new ArrayList<String>();
-	private List<String> user = new ArrayList<String>();
-	private List<String> group = new ArrayList<String>();
-	private List<Short> mode = new ArrayList<Short>();
-	private List<Long> mtime = new ArrayList<Long>();
-	private List<Long> accessTime = new ArrayList<Long>();
+  // INode directory info
+  private List<Long> id = new ArrayList<Long>();
+  private String fullPath;
+  private List<String> localName = new ArrayList<String>();
+  private List<String> user = new ArrayList<String>();
+  private List<String> group = new ArrayList<String>();
+  private List<Short> mode = new ArrayList<Short>();
+  private List<Long> mtime = new ArrayList<Long>();
+  private List<Long> accessTime = new ArrayList<Long>();
+  private List<Long> nsQuota = new ArrayList<Long>();
+  private List<Long> dsQuota = new ArrayList<Long>();
 
-	public List<Long> getId() {
-		return id;
-	}
+  public List<Long> getDsQuota() {
+    return dsQuota;
+  }
 
-	public void addId(Long id) {
-		this.id.add(id);
-	}
+  public void addDsQuota(Long dsQuota) {
+    this.dsQuota.add(dsQuota);
+  }
 
-	public List<String> getUser() {
-		return user;
-	}
+  public List<Long> getNsQuota() {
+    return nsQuota;
+  }
 
-	public void addUser(String user) {
-		this.user.add(user);
-	}
+  public void addNsQuota(Long nsQuota) {
+    this.nsQuota.add(nsQuota);
+  }
 
-	public List<String> getGroup() {
-		return group;
-	}
+  public List<Long> getId() {
+    return id;
+  }
 
-	public void addGroup(String group) {
-		this.group.add(group);
-	}
+  public void addId(Long id) {
+    this.id.add(id);
+  }
 
-	public List<Short> getMode() {
-		return mode;
-	}
+  public List<String> getUser() {
+    return user;
+  }
 
-	public void addMode(Short mode) {
-		this.mode.add(mode);
-	}
+  public void addUser(String user) {
+    this.user.add(user);
+  }
 
-	public List<Long> getMtime() {
-		return mtime;
-	}
+  public List<String> getGroup() {
+    return group;
+  }
 
-	public void addMtime(Long mtime) {
-		this.mtime.add(mtime);
-	}
+  public void addGroup(String group) {
+    this.group.add(group);
+  }
 
-	public String getMsg() {
-		return msg;
-	}
+  public List<Short> getMode() {
+    return mode;
+  }
 
-	public void setMsg(String msg) {
-		this.msg = msg;
-	}
+  public void addMode(Short mode) {
+    this.mode.add(mode);
+  }
 
-	public int getOperation() {
-		return operation;
-	}
+  public List<Long> getMtime() {
+    return mtime;
+  }
 
-	public void setOperation(int operation) {
-		this.operation = operation;
-	}
+  public void addMtime(Long mtime) {
+    this.mtime.add(mtime);
+  }
 
-	public INodeDirectory getParent() {
-		return parent;
-	}
+  public String getMsg() {
+    return msg;
+  }
 
-	public void setParent(INodeDirectory parent) {
-		this.parent = parent;
-	}
+  public void setMsg(String msg) {
+    this.msg = msg;
+  }
 
-	public String getFullPath() {
-		return fullPath;
-	}
+  public int getOperation() {
+    return operation;
+  }
 
-	public void setFullPath(String fullPath) {
-		this.fullPath = fullPath;
-	}
+  public void setOperation(int operation) {
+    this.operation = operation;
+  }
 
-	public List<String> getLocalName() {
-		return localName;
-	}
+  public INodeDirectory getParent() {
+    return parent;
+  }
 
-	public void addLocalName(String localName) {
-		this.localName.add(localName) ;
-	}
+  public void setParent(INodeDirectory parent) {
+    this.parent = parent;
+  }
 
-	public List<Long> getAccessTime() {
-		return accessTime;
-	}
+  public String getFullPath() {
+    return fullPath;
+  }
 
-	public void addAccessTime(Long accessTime) {
-		this.accessTime.add(accessTime);
-	}
+  public void setFullPath(String fullPath) {
+    this.fullPath = fullPath;
+  }
 
-	public String getNamespace() {
-		return namespace;
-	}
+  public List<String> getLocalName() {
+    return localName;
+  }
 
-	public void setNamespace(String namespace) {
-		this.namespace = namespace;
-	}
+  public void addLocalName(String localName) {
+    this.localName.add(localName);
+  }
+
+  public List<Long> getAccessTime() {
+    return accessTime;
+  }
+
+  public void addAccessTime(Long accessTime) {
+    this.accessTime.add(accessTime);
+  }
+
+  public String getNamespace() {
+    return namespace;
+  }
+
+  public void setNamespace(String namespace) {
+    this.namespace = namespace;
+  }
 
 }

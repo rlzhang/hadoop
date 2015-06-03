@@ -215,10 +215,6 @@ import org.apache.hadoop.util.DataChecksum;
 import org.apache.hadoop.util.DataChecksum.Type;
 import org.apache.hadoop.util.Progressable;
 import org.apache.hadoop.util.Time;
-import org.htrace.Sampler;
-import org.htrace.Span;
-import org.htrace.Trace;
-import org.htrace.TraceScope;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
@@ -605,6 +601,12 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
   
   private static Map<String,DFSClient> dfsPool = new ConcurrentHashMap<String,DFSClient>();
 
+  /**
+   * If no federation config in core-site.xml, here will return null.
+   * Have to fix.
+   * @param host
+   * @return
+   */
   public static DFSClient getDfsclient(String host) {
 	if(NameNodeDummy.isNullOrBlank(host)) return null;
 	return dfsPool.get(removeDomain(host));
@@ -651,7 +653,7 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
     this.socketFactory = NetUtils.getSocketFactory(conf, ClientProtocol.class);
     this.dtpReplaceDatanodeOnFailure = ReplaceDatanodeOnFailure.get(conf);
     if(NameNodeDummy.useDistributedNN){
-      NameNodeDummy.log("[DFSClient] host = "+nameNodeUri.getHost());
+      NameNodeDummy.debug("[DFSClient] host = " + nameNodeUri.getHost());
       addDfsclient(nameNodeUri.getHost(), this);
     }
     this.ugi = UserGroupInformation.getCurrentUser();

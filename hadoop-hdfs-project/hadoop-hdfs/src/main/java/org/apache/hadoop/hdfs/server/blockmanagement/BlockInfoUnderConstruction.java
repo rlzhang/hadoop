@@ -62,7 +62,7 @@ public class BlockInfoUnderConstruction extends BlockInfo {
    * It is not guaranteed, but expected, that data-nodes actually have
    * corresponding replicas.
    */
-  static class ReplicaUnderConstruction extends Block {
+  public static class ReplicaUnderConstruction extends Block {
     private final DatanodeStorageInfo expectedLocation;
     private ReplicaState state;
     private boolean chosenAsPrimary;

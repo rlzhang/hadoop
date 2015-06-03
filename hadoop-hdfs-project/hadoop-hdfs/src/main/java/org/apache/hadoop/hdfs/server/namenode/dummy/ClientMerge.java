@@ -27,7 +27,8 @@ public class ClientMerge extends Thread{
 	
 	public void run(){
 		try {
-			System.out.println("[ClientMerge] run : Get directory listing from "+ path);
+			if (NameNodeDummy.DEBUG)
+			   NameNodeDummy.debug("[ClientMerge] run : Get directory listing from "+ path);
 			DirectoryListing thisListing2 = client.listPaths(
 					path, HdfsFileStatus.EMPTY_NAME);
 			synchronized(obj){
@@ -62,10 +63,12 @@ public class ClientMerge extends Thread{
 		ClientMerge.setCurListing(curListing);
 		latch = new CountDownLatch(es.length);
 		ExecutorService excutor = Executors.newFixedThreadPool(es.length);
-		System.out.println("[ClientMerge] Start threads number is "+es.length);
+		if (NameNodeDummy.DEBUG)
+			NameNodeDummy.debug("[ClientMerge] Start threads number is "+es.length);
 		for(int i=0;i<es.length;i++){
 			String path = "/" + INodeServer.PREFIX+es[i].getSourceNNServer()+src;
-			System.out.println("[ClientMerge] Connect to new name node server "+es[i].getTargetNNServer() + ";path is "+path);
+			if (NameNodeDummy.DEBUG)
+				NameNodeDummy.debug("[ClientMerge] Connect to new name node server "+es[i].getTargetNNServer() + ";path is "+path);
 			if(!isContain(es[i].getTargetNNServer(),path)){
 			  excutor.execute(new ClientMerge(DFSClient.getDfsclient(es[i].getTargetNNServer()),path));
 			  addToSet(es[i].getTargetNNServer(),path);

@@ -28,8 +28,6 @@ import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.server.namenode.dummy.ExternalStorage;
 
-import com.esotericsoftware.minlog.Log;
-
 /** Interface that represents the over the wire information for a file.
  */
 @InterfaceAudience.Private

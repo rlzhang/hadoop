@@ -18,8 +18,11 @@ import org.apache.hadoop.hdfs.server.namenode.ContentSummaryComputationContext;
 import org.apache.hadoop.hdfs.server.namenode.INode;
 import org.apache.hadoop.hdfs.server.namenode.INodeDirectory;
 import org.apache.hadoop.hdfs.server.namenode.INodeDirectory.SnapshotAndINode;
+import org.apache.hadoop.hdfs.server.namenode.DirectoryWithQuotaFeature;
+import org.apache.hadoop.hdfs.server.namenode.INodeExternalLink;
 import org.apache.hadoop.hdfs.server.namenode.INodeFile;
 import org.apache.hadoop.hdfs.server.namenode.INodeReference;
+import org.apache.hadoop.hdfs.server.namenode.INodeSymlink;
 import org.apache.hadoop.hdfs.server.namenode.NameNode;
 import org.apache.hadoop.hdfs.server.namenode.NameNodeDummy;
 import org.apache.hadoop.hdfs.server.namenode.Quota;
@@ -38,6 +41,7 @@ import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
 import com.esotericsoftware.kryonet.Server;
 
+
 /**
  * NIO server
  * 
@@ -45,11 +49,12 @@ import com.esotericsoftware.kryonet.Server;
  *
  */
 public class INodeServer extends Thread {
+	private static boolean isTest = false; 
 	public static final Log LOG = LogFactory
 			.getLog(INodeServer.class.getName());
 	public final static String PREFIX = "distr_from_";
-	public final static int WRITE_BUFFER = 1000 * 1000 * 3;
-	public final static int OBJECT_BUFFER = 1000 * 1000 * 3;
+	public final static int WRITE_BUFFER = 1000 * 1000 * 60;
+  public final static int OBJECT_BUFFER = 1000 * 1000 * 60;
 	public final static String DUMMY = "dummy";
 	public final static int TIME_OUT = 10 * 1000;
 	public final static int KEEP_ALIVE = 10 * 1000;
@@ -58,18 +63,57 @@ public class INodeServer extends Thread {
 	private static int TCP_PORT = 8019;
 	private static int UDP_PORT = 18019;
 	private final static PermissionStatus perm = new PermissionStatus(DUMMY, DUMMY,
-			FsPermission.getDefault());
+			FsPermission.getDirDefault());
 	private NameNodeDummy nameNodeDummy;
 
+	/**
+	 * For test only.
+	 */
+	public static void setRoot(INodeDirectory root) {
+		INodeServer.root = root;
+	}
 	public INodeServer(NameNode nn) {
 		nameNodeDummy = NameNodeDummy.getNameNodeDummyInstance();
 		nameNodeDummy.setNameNode(nn);
 	}
-
+	static {
+		//com.esotericsoftware.minlog.Log.set(com.esotericsoftware.minlog.Log.LEVEL_TRACE);
+		//com.esotericsoftware.minlog.Log.TRACE = true;
+		//com.esotericsoftware.minlog.Log.TRACE();
+	}
+	
+	/**
+	public static void main(String[] args) {
+		com.esotericsoftware.minlog.Log.TRACE();
+		IMocksControl control = EasyMock.createControl();
+		NameNode nn = control.createMock(NameNode.class);
+		INodeDirectory root = Divide.simpleInodeDir();
+		INodeServer.setRoot(root);
+		INodeServer.isTest = true;
+		INodeServer server = new INodeServer(nn);
+		
+		InetSocketAddress byAddress1 = new InetSocketAddress("localhost", NameNodeDummy.TCP_PORT);
+		NameNodeDummy.getNameNodeDummyInstance().setNameNode(nn);
+		//nn.getNameNodeAddress();
+		FSNamesystem fs = control.createMock(FSNamesystem.class);
+		nn.getNamesystem();
+		EasyMock.expectLastCall().andReturn(fs).times(1);
+		
+		FSDirectory dir = control.createMock(FSDirectory.class);
+	    fs.getFSDirectory();
+		EasyMock.expectLastCall().andReturn(dir).times(1);
+		
+		NameNodeDummy.getNameNodeDummyInstance().getNamenodeAddress();
+		EasyMock.expectLastCall().andReturn(byAddress1);
+		control.replay();
+		server.start();
+	}
+	**/
+	
 	public void run() {
 		try {
 			this.kickOff(TCP_PORT, UDP_PORT);
-		} catch (IOException e) {
+		} catch (Exception e) {
 			e.printStackTrace();
 		}
 	}
@@ -78,8 +122,9 @@ public class INodeServer extends Thread {
 		Server server = new Server(WRITE_BUFFER, OBJECT_BUFFER);
 		server.addListener(new Listener() {
 			private Map<Integer, SubTree> map = new HashMap<Integer, SubTree>();
-
-			public void received(Connection connection, Object object) {
+			public void received (Connection connection, Object object) {
+			//public void received(Connection connection, Object object) {
+				//System.out.println(" --- Server received " + object.getClass().getName());
 				if (object instanceof INode) {
 					this.handleINode(connection, object);
 				} else if (object instanceof MoveNSRequest) {
@@ -87,12 +132,16 @@ public class INodeServer extends Thread {
 					this.response(connection, object);
 				} else if (object instanceof MapRequest) {
 					this.handleMapRequest(connection, object);
+					INodeTools.updateCountForQuotaRecursively(INodeServer.root, Quota.Counts.newInstance());
+					System.out.println(NameNodeDummy.getNameNodeDummyInstance().printNSInfo(root, 0, 10).replaceAll("&nbsp;", " ").replace("<br/>", "\n"));
+					
 				} else if (object instanceof UpdateRequest) {
 					this.handleOverflowTableUpdate(connection, object);
 				}
-
 			}
-
+			public void connected (Connection connection) {
+				System.out.println("Connected " + connection.getRemoteAddressTCP());
+			}
 			private void handleOverflowTableUpdate(Connection connection, Object object){
 				UpdateRequest request = (UpdateRequest) object;
 				String[] srcs = request.getSrcs();
@@ -123,8 +172,13 @@ public class INodeServer extends Thread {
 
 			public void response(Connection connection, Object object) {
 				MoveNSResponse response = new MoveNSResponse();
-				response.setPoolId(nameNodeDummy.getFSNamesystem()
-						.getBlockPoolId());
+				if(!INodeServer.isTest) {
+					response.setPoolId(nameNodeDummy.getFSNamesystem()
+							.getBlockPoolId());
+				} else {
+					response.setPoolId("testpoolid");
+				}
+				
 				int bytesCount = connection.sendTCP(response);
 				System.out.println(bytesCount + " bytes.Send poolid to client "
 						+ response.getPoolId());
@@ -132,6 +186,7 @@ public class INodeServer extends Thread {
 
 			private void handleMapRequest(Connection connection, Object object) {
 				MapRequest request = (MapRequest) object;
+				System.out.println("Get subtree's parent is " + request.getSubtree().getInode().getParent());
 				map.put(request.getKey(), request.getSubtree());
 				if (parent == null) {
 					NameNodeDummy.LOG
@@ -151,11 +206,12 @@ public class INodeServer extends Thread {
 					if (parent != null) {
 						// parent.addChild(inode);
 						this.recursiveAddNode(inode, parent);
-					}
-					System.out.println(Tools.display(inode, 10, true));
+						}
+					//System.out.println(Tools.display(inode, 10, true));
 					System.out.println("Server received all the data!");
 					this.finalResponse(connection);
 					try {
+						if (!INodeServer.isTest)
 						NameNodeDummy.getNameNodeDummyInstance()
 								.saveNamespace();
 						System.out.println("Force saved the namespace!!");
@@ -186,14 +242,21 @@ public class INodeServer extends Thread {
 				INode temp = parent.getChild(
 						DFSUtil.string2Bytes(child.getLocalName()),
 						Snapshot.CURRENT_STATE_ID);
+				//Reset parent
+				child.setParent(parent);
 				if (child.isFile()) {
 					if (temp == null) {
 						parent.addChild(child);
+						
 						this.addINodeToMap(child);
 						NameNodeDummy.getNameNodeDummyInstance().addINode(
 								child.asFile());
 						NameNode.getNameNodeMetrics().incrFilesCreated();
 						NameNode.getNameNodeMetrics().incrCreateFileOps();
+						//This might a bug cause NSQuotaExceededException
+						//long increaseNS = child.computeQuotaUsage().get(Quota.NAMESPACE);
+						//NameNodeDummy.getNameNodeDummyInstance().setQuota(parent.getFullPathName(), (parent.computeQuotaUsage().get(Quota.NAMESPACE) + increaseNS), parent.computeQuotaUsage().get(Quota.DISKSPACE));
+					
 					}
 					return;
 				}
@@ -205,9 +268,9 @@ public class INodeServer extends Thread {
 					isLoop = true;
 				} else {
 
-					System.out.println("====" + child.getId()
+					//System.out.println("====" + child.getId()
 							//+ ";child.getParent.getFullPathName()=" + child.getParent().getFullPathName()
-							+ ";child.getGroupName()=" + child.getFullPathName());
+						//	+ ";child.getGroupName()=" + child.getFullPathName());
 					/** Ignore Namespace (servername) **/
 					//if (child.getId() == 1&&child.getLocalName().startsWith(PREFIX)) {
 						//isLoop = true;
@@ -219,9 +282,18 @@ public class INodeServer extends Thread {
 						isLoop = true;
 					} else {
 						parent.addChild(child);
+						//Reset parent
+						//child.setParent(parent);
 						this.addChildren(child);
-						NameNode.getNameNodeMetrics().incrFilesCreated();
-						NameNode.getNameNodeMetrics().incrCreateFileOps();
+						if (!INodeServer.isTest) {
+							NameNode.getNameNodeMetrics().incrFilesCreated();
+							NameNode.getNameNodeMetrics().incrCreateFileOps();
+							// This might caused a bug of NSQuotaExceededException
+
+							//long increaseNS = child.computeQuotaUsage().get(Quota.NAMESPACE);
+							//NameNodeDummy.getNameNodeDummyInstance().setQuota(parent.getFullPathName(), (parent.computeQuotaUsage().get(Quota.NAMESPACE) + increaseNS), parent.computeQuotaUsage().get(Quota.DISKSPACE));					
+							
+						}
 						return;
 					}
 
@@ -261,14 +333,17 @@ public class INodeServer extends Thread {
 					this.updateBlocksMap(inode.asFile());
 					return;
 				}
-
+				if (!inode.isDirectory()) {
+					System.err.println("Not a directory and file! " + inode.getFullPathName() + inode.isSymlink());
+					return;
+				}
 				ReadOnlyList<INode> roList = inode.asDirectory()
 						.getChildrenList(Snapshot.CURRENT_STATE_ID);
 
 				for (int i = 0; i < roList.size(); i++) {
 					addChildren(roList.get(i));
 				}
-
+				if(!INodeServer.isTest)
 				this.addINodeToMap(inode);
 			}
 
@@ -304,13 +379,18 @@ public class INodeServer extends Thread {
 				
 				INodeDirectory root2 = new INodeDirectory(1, DFSUtil
 						.string2Bytes(server), perm, Time.now());
+				root2 = NameNodeDummy.getNameNodeDummyInstance().addQuota(root2);
+				
 				root.addChild(root2);
+
+				if (!INodeServer.isTest)
 				this.addINodeToMap(root2);
 				parent = root2.asDirectory();
 
 			}
 
 			private void handleMoveNSRequest(Connection connection, Object object) {
+				
 				MoveNSRequest request = (MoveNSRequest) object;
 
 				if (root == null)
@@ -348,12 +428,15 @@ public class INodeServer extends Thread {
 								DFSUtil.string2Bytes(request.getLocalName()
 										.get(k)), perm, request.getMtime().get(
 										k));
+						
+						NameNodeDummy.getNameNodeDummyInstance().addQuota(child.asDirectory(), request.getNsQuota().get(k), request.getDsQuota().get(k));
 						// tmp.setAccessTime(request.getAccessTime().get(k));
 						child.setAccessTime(Time.now());
 						LOG.info("Adding node local name="
 								+ child.getFullPathName() + " to "
 								+ parent.getFullPathName());
 						parent.addChild(child);
+						if (!INodeServer.isTest)
 						this.addINodeToMap(child);
 						child.setParent(parent);
 						parent = child.asDirectory();
@@ -380,7 +463,7 @@ public class INodeServer extends Thread {
 		INodeServer.register(server.getKryo());
 		server.start();
 		server.bind(tcpPort, udpPort);
-
+		//System.out.println("Server running on " + tcpPort);
 	}
 
 	public static void register(Kryo kryo) {
@@ -391,13 +474,78 @@ public class INodeServer extends Thread {
 	}
 
 	/**
-	 * Decouple block id -> datanodes mapping, will handle by datanode report.
-	 * 
+	private static void registerINodeFile(Kryo kryo) {
+		kryo.register(
+				INodeFile.class,
+				new Serializer<INodeFile>() {
+
+					@Override
+					public INodeFile read(Kryo kryo, Input input,
+							Class<INodeFile> arg2) {
+						int replication = input.readInt();
+						long bid = input.readLong();
+						long stamp = input.readLong();
+						long blockSize = input.readLong();
+						BlockInfo bi = new BlockInfo(new Block(bid, blockSize,
+								stamp), replication);
+						kryo.reference(bi);
+						return bi;
+					}
+
+					@Override
+					public void write(Kryo kryo, Output out, INodeFile file) {
+						out.writeShort(file.getFileReplication());
+						out.writeLong(file.getModificationTime());
+						
+						out.writeLong(file.getAccessTime());
+						out.writeLong(file.getPermissionLong());
+						out.writeLong(file.getPreferredBlockSize());
+						out.writeByte(file.getLocalStoragePolicyID());
+					}
+
+				});
+	}
+	
+	**/
+	
+	/**
+	 * Decouple block id -> datanodes mapping, which will handle by datanode report.
+	 * We only care about INodeFile and INodeDirectory, INodeSymlink and INodeExternalLink will never be divided out.
 	 * @param kryo
 	 */
 	private static void registerClass(Kryo kryo) {
-		kryo.register(INodeDirectory.class);
-		kryo.register(INodeFile.class);
+		FieldSerializer dir = new FieldSerializer(
+				kryo, INodeDirectory.class);
+		//dir.removeFieldFirstOnly("parent");
+		dir.removeField("parent");
+		//dir.removeField("features");
+		//kryo.register(INode.class, dir);
+		
+		kryo.register(INodeDirectory.class, dir);
+		
+		FieldSerializer file = new FieldSerializer(
+				kryo, INodeFile.class);
+		file.removeField("parent");
+		kryo.register(INodeFile.class, file);
+		
+		kryo.register(org.apache.hadoop.hdfs.server.namenode.dummy.ExternalStorage.class);
+		kryo.register(ExternalStorageMapping.class);
+		kryo.register(org.apache.hadoop.hdfs.server.namenode.dummy.ExternalStorage[].class);
+		FieldSerializer external = new FieldSerializer(
+				kryo, INodeExternalLink.class);
+		external.removeField("parent");
+		kryo.register(INodeExternalLink.class, external);
+		
+		FieldSerializer ref = new FieldSerializer(
+				kryo, INodeReference.class);
+		ref.removeField("parent");
+		kryo.register(INodeReference.class, ref);
+		
+		FieldSerializer sym = new FieldSerializer(
+				kryo, INodeSymlink.class);
+		sym.removeField("parent");
+		kryo.register(INodeSymlink.class, sym);
+		
 		/**
 		kryo.register(org.apache.hadoop.hdfs.server.namenode.INodeExternalLink.class);
 		kryo.register(ExternalStorageMapping.class);
@@ -456,6 +604,12 @@ public class INodeServer extends Thread {
 		kryo.register(java.util.Set.class);
 		kryo.register(java.util.HashSet.class);
 		kryo.register(java.util.Collection.class);
+		
+		//New ones
+		kryo.register(org.apache.hadoop.hdfs.server.blockmanagement.BlockInfoUnderConstruction.class);
+		kryo.register(org.apache.hadoop.hdfs.server.blockmanagement.BlockInfoUnderConstruction.ReplicaUnderConstruction.class);
+		kryo.register(org.apache.hadoop.hdfs.server.common.HdfsServerConstants.BlockUCState.class);
+		
 		kryo.register(org.apache.hadoop.hdfs.server.protocol.DatanodeStorage.State.class);
 		kryo.register(
 				org.apache.hadoop.hdfs.server.blockmanagement.BlockInfo.class,

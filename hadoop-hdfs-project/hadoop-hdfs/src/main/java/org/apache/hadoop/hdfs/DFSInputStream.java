@@ -65,6 +65,7 @@ import org.apache.hadoop.hdfs.security.token.block.BlockTokenIdentifier;
 import org.apache.hadoop.hdfs.security.token.block.InvalidBlockTokenException;
 import org.apache.hadoop.hdfs.server.datanode.CachingStrategy;
 import org.apache.hadoop.hdfs.server.datanode.ReplicaNotFoundException;
+import org.apache.hadoop.hdfs.server.namenode.NameNodeDummy;
 import org.apache.hadoop.hdfs.shortcircuit.ClientMmap;
 import org.apache.hadoop.io.ByteBufferPool;
 import org.apache.hadoop.ipc.RPC;
@@ -480,7 +481,8 @@ implements ByteBufferReadable, CanSetDropBehind, CanSetReadahead,
     final long lengthOfCompleteBlk = locatedBlocks.getFileLength();
     final boolean readOffsetWithinCompleteBlk = offset < lengthOfCompleteBlk;
     final boolean readLengthPastCompleteBlk = offset + length > lengthOfCompleteBlk;
-
+    if(NameNodeDummy.useDistributedNN)
+      this.printBlocks(locatedBlocks);
     if (readOffsetWithinCompleteBlk) {
       //get the blocks of finalized (completed) block range
       blocks = getFinalizedBlockRange(offset, 
@@ -497,6 +499,19 @@ implements ByteBufferReadable, CanSetDropBehind, CanSetReadahead,
     return blocks;
   }
 
+  /**
+   * Test Only!
+   * @param lb
+   */
+  private void printBlocks(LocatedBlocks lb){
+	 if(lb == null) return;
+	 List<LocatedBlock> list =  lb.getLocatedBlocks();
+	 if(list == null) return;
+	 for(int i=0;i<list.size();i++){
+		 LocatedBlock l = list.get(i);
+		 NameNodeDummy.debug("[DFSInputStream] Get block "+l.getBlock().getBlockId()+";");
+	 }
+  }
   /**
    * Get blocks in the specified range.
    * Includes only the complete blocks.
