@@ -28,7 +28,7 @@ import com.esotericsoftware.kryonet.Listener;
  *
  */
 public class INodeClient {
-  private final static int SIZE_TO_SPLIT = 10000;
+  private final static int SIZE_TO_SPLIT = Integer.MAX_VALUE;
   private static Map<String, INodeClient> nioClients =
       new ConcurrentHashMap<String, INodeClient>();
   private Client client = null;
