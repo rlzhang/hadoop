@@ -117,6 +117,9 @@ public class NameNodeDummy {
     return obj == null || obj.length == 0;
   }
 
+  public static void assertEqual(Object a, Object b) {
+    if (!a.equals(b)) System.err.println(a + " not equals " + b);
+  }
   public static boolean isNullOrBlank(String str) {
     return str == null || str.length() == 0;
   }
@@ -162,6 +165,10 @@ public class NameNodeDummy {
     }
   }
 
+  public void logs(String logs) {
+      System.out.println(logs);
+      System.out.println(NEWLINE);
+  }
   public static void warn(String str) {
     if (NameNodeDummy.WARN)
       System.err.println(str);
@@ -238,6 +245,56 @@ public class NameNodeDummy {
         + " milliseconds!");
   }
 
+  
+  public synchronized void moveNS(String path, String server) throws IOException {
+    long start = System.currentTimeMillis();
+    logs( "Starting moving process, moving namespace " + path
+        + " to server " + server);
+    if (path == null || "".equals(path.trim())) {
+      logs( "Path cannot be empty!");
+    }
+
+    if (fs == null) {
+      logs("Namenode not ready yet!!!");
+      return;
+    }
+    fs = this.getFSNamesystem();
+
+    // Get sub-tree from root dir
+    INode subTree = fs.dir.getINode(path);
+
+    if (subTree == null || subTree.isRoot() || !subTree.isDirectory()) {
+      logs("Invalidate path!");
+      return;
+    }
+
+    logs(" Found path " + subTree.getFullPathName());
+    logs(" Display namespace (maximum 10 levels) :");
+    logs(this.printNSInfo(subTree, 0, DEFAULT_LEVEL));
+
+    try {
+      INodeClient client =
+          INodeClient.getInstance(server, NameNodeDummy.TCP_PORT,
+              NameNodeDummy.UDP_PORT);
+      // INodeClient client = new INodeClient(server,
+      // NameNodeDummy.TCP_PORT, NameNodeDummy.UDP_PORT);
+      // Send sub-tree to another name node
+      client.sendINode(subTree, null, subTree.getParent().isRoot());
+
+      // Collect blocks information and will notify data node update block
+      // pool id.
+      Map<String, List<Long>> map = getBlockInfos(fs, subTree);
+      this.setBlockIds(map);
+      // client.cleanup();
+    } catch (Exception e) {
+      e.printStackTrace();
+      System.out.println("Namenode server not ready, please try again later ... "
+          + e.getMessage());
+    }
+
+    logs( "Spend " + (System.currentTimeMillis() - start)
+        + " milliseconds!");
+  }
   /**
    * Block ids to long
    * 
@@ -265,7 +322,7 @@ public class NameNodeDummy {
    * @param nn
    * @return
    */
-  public INode getRoot() {
+  public INodeDirectory getRoot() {
     if (this.getFSNamesystem() == null) {
       LOG.error("Namenode not ready yet!!!");
       return null;

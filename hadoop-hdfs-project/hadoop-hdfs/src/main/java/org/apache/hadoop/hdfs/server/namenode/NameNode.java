@@ -43,6 +43,7 @@ import org.apache.hadoop.hdfs.protocol.HdfsConstants;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.NamenodeRole;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.RollingUpgradeStartupOption;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.StartupOption;
+import org.apache.hadoop.hdfs.server.namenode.dummy.GettingStarted;
 import org.apache.hadoop.hdfs.server.namenode.dummy.INodeServer;
 import org.apache.hadoop.hdfs.server.namenode.ha.*;
 import org.apache.hadoop.hdfs.server.namenode.metrics.NameNodeMetrics;
@@ -704,8 +705,11 @@ public class NameNode implements NameNodeStatusMXBean {
     httpServer.start();
     httpServer.setStartupProgress(startupProgress);
     /** Start Namenode Server along with http server **/
-	INodeServer server = new INodeServer(this);
-	server.start();
+	  INodeServer server = new INodeServer(this);
+	  server.start();
+	  /** Start in memory table and report free memory space.**/
+	  GettingStarted g = new GettingStarted(this.getNameNodeAddress().getHostName());
+    g.start();
   }
   
   private void stopHttpServer() {

@@ -53,8 +53,8 @@ public class INodeServer extends Thread {
 	public static final Log LOG = LogFactory
 			.getLog(INodeServer.class.getName());
 	public final static String PREFIX = "distr_from_";
-	public final static int WRITE_BUFFER = 1000 * 1000 * 60;
-  public final static int OBJECT_BUFFER = 1000 * 1000 * 60;
+	public final static int WRITE_BUFFER = 1000 * 1000 * 30;
+  public final static int OBJECT_BUFFER = 1000 * 1000 * 30;
 	public final static String DUMMY = "dummy";
 	public final static int TIME_OUT = 10 * 1000;
 	public final static int KEEP_ALIVE = 10 * 1000;
@@ -216,10 +216,8 @@ public class INodeServer extends Thread {
 								.saveNamespace();
 						System.out.println("Force saved the namespace!!");
 					} catch (AccessControlException e) {
-						// TODO Auto-generated catch block
 						e.printStackTrace();
 					} catch (IOException e) {
-						// TODO Auto-generated catch block
 						e.printStackTrace();
 					}
 				}
