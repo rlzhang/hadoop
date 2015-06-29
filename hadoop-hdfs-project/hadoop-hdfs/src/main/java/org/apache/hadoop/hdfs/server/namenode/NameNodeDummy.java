@@ -29,20 +29,16 @@ import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
 import org.apache.hadoop.hdfs.protocol.QuotaExceededException;
 import org.apache.hadoop.hdfs.protocol.SnapshotAccessControlException;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockManager;
-import org.apache.hadoop.hdfs.server.namenode.INode.BlocksMapUpdateInfo;
 import org.apache.hadoop.hdfs.server.namenode.dummy.ExternalStorage;
 import org.apache.hadoop.hdfs.server.namenode.dummy.ExternalStorageMapping;
 import org.apache.hadoop.hdfs.server.namenode.dummy.INodeClient;
 import org.apache.hadoop.hdfs.server.namenode.dummy.INodeServer;
 import org.apache.hadoop.hdfs.server.namenode.dummy.OverflowTable;
 import org.apache.hadoop.hdfs.server.namenode.dummy.OverflowTableNode;
-import org.apache.hadoop.hdfs.server.namenode.dummy.PrettyPrintBST;
 import org.apache.hadoop.hdfs.server.namenode.dummy.UpdateRequest;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
-import org.apache.hadoop.hdfs.util.ChunkedArrayList;
 import org.apache.hadoop.hdfs.util.ReadOnlyList;
 import org.apache.hadoop.security.AccessControlException;
-import org.apache.hadoop.util.Time;
 
 /**
  * Main entry of display and move namespace tree.
