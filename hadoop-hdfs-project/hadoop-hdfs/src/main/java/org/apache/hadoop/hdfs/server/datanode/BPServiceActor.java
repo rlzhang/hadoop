@@ -846,7 +846,7 @@ class BPServiceActor implements Runnable {
    * Adding related blocks report to new NN
    */
   void reportToNewNN(){
-      if(NameNodeDummy.getNameNodeDummyInstance().isReportToNewNN()&&bpos.getBlockPoolId().equals(NameNodeDummy.getNameNodeDummyInstance().getNewBpId())){
+      if(NameNodeDummy.getNameNodeDummyInstance().isReportToNewNN() && bpos.getBlockPoolId().equals(NameNodeDummy.getNameNodeDummyInstance().getNewBpId())){
       	List<DatanodeCommand> cmds = null;
 		try {
 			cmds = blockReportToNewNN(NameNodeDummy.getNameNodeDummyInstance().getNewBpId());

@@ -29,6 +29,10 @@ public class ClientMerge extends Thread{
 		try {
 			if (NameNodeDummy.DEBUG)
 			   NameNodeDummy.debug("[ClientMerge] run : Get directory listing from "+ path);
+			if (client == null) {
+			  System.err.println("DFSClient is null!");
+			  return;
+			}
 			DirectoryListing thisListing2 = client.listPaths(
 					path, HdfsFileStatus.EMPTY_NAME);
 			synchronized(obj){

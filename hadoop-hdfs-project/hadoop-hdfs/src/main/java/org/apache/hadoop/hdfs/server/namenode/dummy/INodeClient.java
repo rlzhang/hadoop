@@ -2,8 +2,8 @@ package org.apache.hadoop.hdfs.server.namenode.dummy;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 
 import javax.servlet.jsp.JspWriter;
@@ -28,7 +28,7 @@ import com.esotericsoftware.kryonet.Listener;
  *
  */
 public class INodeClient {
-  private final static int SIZE_TO_SPLIT = Integer.MAX_VALUE;
+  private final static long SIZE_TO_SPLIT = 1l;
   private static Map<String, INodeClient> nioClients =
       new ConcurrentHashMap<String, INodeClient>();
   private Client client = null;
@@ -40,8 +40,12 @@ public class INodeClient {
   private static Object obj = new Object();
   private INodeExternalLink link;
   private boolean isReponsed = false;
+  private boolean sendDone = false;
   private boolean existingNamespace = false;
   private JspWriter out;
+  // Retry times for BufferOverflowException.
+  private int MAX_RETRY = 6;
+  private int retry = 0;
 
   public static INodeClient getInstance(String server, int tcpPort, int udpPort) {
     INodeClient client = nioClients.get(server);
@@ -69,8 +73,8 @@ public class INodeClient {
   }
 
   static {
-    //com.esotericsoftware.minlog.Log.set(com.esotericsoftware.minlog.Log.LEVEL_TRACE);
-    //com.esotericsoftware.minlog.Log.TRACE();
+    com.esotericsoftware.minlog.Log.set(com.esotericsoftware.minlog.Log.LEVEL_TRACE);
+    com.esotericsoftware.minlog.Log.TRACE();
   }
 
   /**
@@ -150,14 +154,15 @@ public class INodeClient {
           isReponsed = true;
         } else if (object instanceof ClientCommends) {
           ClientCommends response = (ClientCommends) object;
+          //if (NameNodeDummy.DEBUG)
+          System.out.println("Get ClientCommends from server "
+              + response.getCommand());
           if (response.getCommand() == 0) {
-            try {
-              INodeClient.this.cleanup();
-            } catch (Exception e) {
-              // TODO Auto-generated catch block
-              e.printStackTrace();
-              System.err.println("Cannot run clean up!");
-            }
+
+          } else if (response.getCommand() == 1) {
+            if (response.getListSize() == listSize)
+              sendDone = true;
+
           }
         }
       }
@@ -178,7 +183,7 @@ public class INodeClient {
 
     client.start();
     client.connect(INodeServer.TIME_OUT, server, tcpPort, udpPort);
-
+    //client.update(INodeServer.TIME_OUT);
   }
 
   public void close() {
@@ -193,21 +198,67 @@ public class INodeClient {
    * @param obj
    * @param out
    * @return Size of sent data.
+   * @throws Exception 
    */
-  public int sendTCP(Object obj, JspWriter out) {
+  public int sendTCP(Object obj, JspWriter out) throws Exception {
 
-    int size = client.sendTCP(obj);
+    int size = -1;
+    try {
+      size = client.sendTCP(obj);
+      if (size == 0) throw new Exception("Send size should not be zero!");
+      if (!this.client.isConnected()) throw new Exception("Lost connection, try to reconnect...");
+      //size = client.sendUDP(obj);
+    } catch (Exception e) {
+      //e.printStackTrace();
+      System.err.println(e.getMessage());
+      if (obj instanceof org.apache.hadoop.hdfs.server.namenode.dummy.MapRequest) {
+        System.err.println("[ERROR] obj = " + ((MapRequest) obj).getKey());
+      }
 
-    if (out != null)
-      this.nnd.logs(out,
-          "Send tcp package:" + this.nnd.humanReadableByteCount(size));
-    else {
+      try {
+        Thread.sleep(100);
+      } catch (InterruptedException e1) {
+        e1.printStackTrace();
+      }
+      if (retry < MAX_RETRY) {
+        System.out.println("-----Retry now ..." + this.client.isConnected());
+        retry++;
+        if (this.client == null || !this.client.isConnected())
+          this.connect();
+        size = this.sendTCP(obj, out);
+        //Clear memory.
+        //obj = null;
+      } else {
+        retry = 0;
+        System.err.println("[ERROR] Retry failed!");
+        //this.close();
+        //this.connect();
+      }
+
+    } finally {
+      obj = null;
+    }
+
+    if (NameNodeDummy.DEBUG)
+      if (obj instanceof org.apache.hadoop.hdfs.server.namenode.dummy.MapRequest) {
+        System.out.println("obj = " + ((MapRequest) obj).getKey());
+      }
+    if (NameNodeDummy.DEBUG)
+    if (out != null) {
+      if (obj instanceof org.apache.hadoop.hdfs.server.namenode.dummy.MapRequest
+          && ((MapRequest) obj).getKey() % 1000 == 0) {
+        this.nnd.logs(out,
+            "Send tcp package:" + this.nnd.humanReadableByteCount(size));
+      }
+    } else {
       NameNodeDummy.info(obj.getClass().getName() + " , Send tcp package:"
           + this.nnd.humanReadableByteCount(size));
     }
-
+    retry = 0;
     return size;
   }
+
+  private int listSize = -1;
 
   /**
    * Send namespace to another namenode server
@@ -217,6 +268,7 @@ public class INodeClient {
    * @return
    */
   public boolean sendINode(INode subTree, JspWriter out, boolean isParentRoot) {
+    long start = System.currentTimeMillis();
     if (this.out == null)
       this.out = out;
     boolean ifSuccess = false;
@@ -250,6 +302,9 @@ public class INodeClient {
       if (!isLink)
         this.link = INodeExternalLink.getInstance(this.subTree, es, src);
 
+      /**
+       * Handle overflow talbe
+       */
       NameNodeDummy.getNameNodeDummyInstance().filterExternalLink(this.subTree,
           link, parent);
 
@@ -289,10 +344,6 @@ public class INodeClient {
         }
       }
 
-      if (this.client == null || !this.client.isConnected())
-        this.connect();
-      int response = this.sendTCP(request, out);
-
       /**
        * Send the namespace tree
        */
@@ -303,36 +354,81 @@ public class INodeClient {
 
       splitTree.intelligentSplitToSmallTree(subTree, SIZE_TO_SPLIT, 0);
 
-      Map<Integer, SubTree> map = splitTree.getMap();
+      List<MapRequest> list = splitTree.getSplittedNodes();
 
-      int size = map.size();
+      int size = list.size();
+      listSize = size;
+      request.setListSize(size);
 
+      if (this.client == null || !this.client.isConnected())
+        this.connect();
+      int response = this.sendTCP(request, out);
+      if (NameNodeDummy.DEBUG)
+        System.out.println("; list size is " + size);
+      int remain = size;
+      int count = 0;
       if (response > 0) {
 
         /** Prepare to send all namespace sub-tree **/
-        Iterator<Entry<Integer, SubTree>> iter = map.entrySet().iterator();
+        Iterator<MapRequest> iter = list.iterator();
+        MapRequest[] sendArray = this.getSendArray(size);
+        int i = 0;
+        int len = sendArray.length -1;
         while (iter.hasNext()) {
-          Entry<Integer, SubTree> entry = iter.next();
-          Integer id = entry.getKey();
-          SubTree sub = entry.getValue();
-          MapRequest mapRequest = new MapRequest(id, sub, size);
-          if (out != null)
-            this.nnd.logs(out, "Sending "
-                + mapRequest.getSubtree().getInode().getLocalName()
-                + " to server " + this.server);
-
-          this.sendTCP(mapRequest, out);
+        //for (int i = 0; i < size; i++) {
+          MapRequest mapRequest = iter.next();
+          sendArray[i] = mapRequest;
+          if (i == len) {
+            i = 0;
+            count++;
+            int s = this.sendTCP(sendArray, out);
+            //if (NameNodeDummy.TEST) {
+            System.out.println(remain + " = remain, send tcp size " + s + ", count is " + count + ", array len is " + len);
+           // }
+            remain = remain - sendArray.length;
+            if (remain == 0) {
+              break;
+            }
+            sendArray = this.getSendArray(remain);
+            len = sendArray.length -1; 
+          } else {
+            i++;
+          }
+          //MapRequest mapRequest = iter.next();
+          //if (out != null)
+          // this.nnd.logs(out, "Sending "
+          //System.out.println("Sending " + mapRequest.getKey() + " to server "
+            //  + this.server + "; send object list size is " + size);
+          /**
+          else {
+            if (NameNodeDummy.DEBUG)
+              System.out.println("Sending " + mapRequest.getKey()
+                  + " to server " + this.server + "; send object list size is "
+                  + size);
+          }
+          **/
+            
+          //mapRequest = null;
         }
       }
 
       ifSuccess = true;
+      list.clear();
+      list = null;
+      System.out.println("Client successfully send all data: " + size);
+      if (out != null)
+      NameNodeDummy.getNameNodeDummyInstance().logs(out, "Send INode spend " + (System.currentTimeMillis() - start)
+          + " milliseconds!" + count);
+      System.out.println("Send INode spend " + (System.currentTimeMillis() - start)
+          + " milliseconds!" + count);
 
     } catch (Exception e) {
+      System.err.println("Failed to send namespace: " + e.getMessage());
       if (out != null)
         this.nnd.logs(out, "Cannot send sub-tree " + subTree.getFullPathName()
             + " to server " + this.server + ";Error message:" + e.getMessage());
       else {
-        NameNodeDummy.debug("Cannot send sub-tree " + subTree.getFullPathName()
+        System.err.println("Cannot send sub-tree " + subTree.getFullPathName()
             + " to server " + this.server + ";Error message:" + e.getMessage());
       }
       //For test only!
@@ -344,14 +440,27 @@ public class INodeClient {
       // Reference
       //subTree.setParent(parent);
       /**
-       * Reset reference for INodeExternalLink
+       * Reset reference for INodeExternalLink, no need now, have handled
        */
-      NameNodeDummy.getNameNodeDummyInstance().recoverExternalLink();
+      //NameNodeDummy.getNameNodeDummyInstance().recoverExternalLink();
+      ifSuccess = this.waitServerReceivedAllData();
     }
 
     return ifSuccess;
   }
 
+  private MapRequest[] getSendArray(int size) {
+    MapRequest[] sendArray = null;
+    if (size > INodeServer.MAX_GROUP){
+      sendArray = new MapRequest[INodeServer.MAX_GROUP];
+    } else {
+      sendArray = new MapRequest[size];
+    }
+
+    //if (NameNodeDummy.TEST)
+    //System.out.println("Group size is " + sendArray.length);
+    return sendArray;
+  }
   private void waitResponseFromTargetNN() {
     while (!isReponsed) {
       try {
@@ -360,6 +469,34 @@ public class INodeClient {
         e.printStackTrace();
       }
     }
+  }
+
+  /**
+   * Wait until server response received all the datas.
+   */
+  private boolean waitServerReceivedAllData() {
+    boolean success = true;
+    int waitLoops = 30 * 10;
+    int i = 0;
+    while (!sendDone) {
+      i++;
+      if (i > waitLoops) {
+        System.err
+            .println("Error! Server didn't received all the datas. Move namespace failed!");
+        success = false;
+        break;
+      }
+      try {
+        Thread.sleep(100);
+      } catch (InterruptedException e) {
+        e.printStackTrace();
+      }
+    }
+    if (sendDone && i < waitLoops) {
+      System.out.println("Server has successfully received all the datas!");
+    }
+
+    return success;
   }
 
   /**
@@ -375,11 +512,16 @@ public class INodeClient {
         this.subTree.asDirectory().getChildrenList(Snapshot.CURRENT_STATE_ID);
     String[] srcs = new String[roList.size()];
     String parent = this.subTree.getParent().getFullPathName();
-    for (int i = 0; i < roList.size(); i++) {
-      INode inode = roList.get(i);
-      srcs[i] = parent + inode.getLocalName();
-      System.out.println("[INodeClient]notifySourceNNUpdate: send path = "
-          + srcs[i]);
+    Iterator<INode> ite = roList.iterator();
+    //for (int i = 0; i < roList.size(); i++) {
+    int i = 0;
+    while (ite.hasNext()) {
+      //INode inode = roList.get(i);
+      INode inode = ite.next();
+      srcs[i++] = parent + inode.getLocalName();
+      if (NameNodeDummy.DEBUG)
+        System.out.println("[INodeClient]notifySourceNNUpdate: send path = "
+            + srcs[i]);
     }
     NameNodeDummy.getNameNodeDummyInstance().sendToNN(
         server,
@@ -389,13 +531,20 @@ public class INodeClient {
             .getHostName(), srcs);
   }
 
-  public void cleanup() throws Exception {
-    //Wait to clean
-    try {
-      Thread.sleep(10 * 1000);
-    } catch (Exception e) {
+  private void clean() throws Exception {
 
+    boolean success = this.waitServerReceivedAllData();
+    if (success) {
+      this.cleanup();
+    } else {
+      System.err
+          .println("Server failed to receive all the datas, so don't delete namespace on source node!");
     }
+
+  }
+
+  public void cleanup() throws Exception {
+
     if (this.existingNamespace) {
       System.out.println("Found existing namespace "
           + this.subTree.getFullPathName());
@@ -430,8 +579,20 @@ public class INodeClient {
           this.subTree.getParent());
     }
 
+    // Delete namespace tree in memory.
     NameNodeDummy.getNameNodeDummyInstance().deletePath(
         this.subTree.getFullPathName());
+    // Clear memory
+    if (this.subTree != null){
+      // This subTree must be a directory
+      if (this.subTree.isDirectory())
+        this.subTree.asDirectory().clear();
+      if (this.subTree.getParent() != null) {
+        this.subTree.getParent().removeChild(this.subTree);
+      }
+    } 
+    this.subTree = null;
+    
     try {
       NameNodeDummy.getNameNodeDummyInstance().saveNamespace();
     } catch (AccessControlException e) {
@@ -440,6 +601,9 @@ public class INodeClient {
     } catch (IOException e) {
       // TODO Auto-generated catch block
       e.printStackTrace();
+    }  finally {
+      // No guarantee.
+      System.gc();
     }
   }
 

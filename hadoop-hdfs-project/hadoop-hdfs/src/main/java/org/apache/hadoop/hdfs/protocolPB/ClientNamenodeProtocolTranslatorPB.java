@@ -25,6 +25,7 @@ import java.util.EnumSet;
 import java.util.List;
 
 import com.google.common.collect.Lists;
+
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.crypto.CipherSuite;
@@ -187,7 +188,6 @@ import org.apache.hadoop.security.token.Token;
 
 import com.google.protobuf.ByteString;
 import com.google.protobuf.ServiceException;
-
 
 import static org.apache.hadoop.fs.BatchedRemoteIterator.BatchedListEntries;
 import static org.apache.hadoop.hdfs.protocol.proto.EncryptionZonesProtos
@@ -756,6 +756,13 @@ public class ClientNamenodeProtocolTranslatorPB implements
     }
   }
 
+
+  @Override
+  public HdfsFileStatus getOverflowTable(String src) {
+    // TODO Auto-generated method stub
+    return null;
+  }
+  
   @Override
   public HdfsFileStatus getFileLinkInfo(String src)
       throws AccessControlException, UnresolvedLinkException, IOException {

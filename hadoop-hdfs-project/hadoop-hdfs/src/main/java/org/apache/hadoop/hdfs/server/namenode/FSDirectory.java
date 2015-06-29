@@ -1438,7 +1438,7 @@ public class FSDirectory implements Closeable {
         return null;
 
       /** Test Only! **/
-      NameNodeDummy.debug("[FSDirectory]getListing:targetNode:"+targetNode.getFullPathName());
+      //NameNodeDummy.debug("[FSDirectory]getListing:targetNode:"+targetNode.getFullPathName());
       byte parentStoragePolicy = isSuperUser ?
           targetNode.getStoragePolicyID() : BlockStoragePolicySuite.ID_UNSPECIFIED;
       
@@ -1469,7 +1469,8 @@ public class FSDirectory implements Closeable {
 
         if(NameNodeDummy.useDistributedNN){
         	if(cur.isExternalLink()){
-        		NameNodeDummy.debug("[FSDirectory]getListing: Found ExternalLink!!! cur:"+cur.getFullPathName());
+        	  if (NameNodeDummy.DEBUG)
+        		  NameNodeDummy.debug("[FSDirectory]getListing: Found ExternalLink!!! cur:"+cur.getFullPathName());
         		ExternalStorage[] es = cur.asExternalLink().getEsMap();
         		if(es!=null){
         			listing[i].setEs(es);
@@ -1572,18 +1573,21 @@ public class FSDirectory implements Closeable {
           inodesInPath));
           if (NameNodeDummy.useDistributedNN){
         	  if (i != null){
-        		  NameNodeDummy.debug("[FSDirectory]:getFileInfo: last INode = " + i.getFullPathName());
+        	    if (NameNodeDummy.DEBUG)
+        		    NameNodeDummy.debug("[FSDirectory]:getFileInfo: last INode = " + i.getFullPathName());
         	  }
                   
                 if (i !=null && i.isExternalLink())
                   NameNodeDummy.debug("[FSDirectory]:getFileInfo: Found ExternalLink INode: "+i.getFullPathName()+";getEsMap:"+i.asExternalLink().getEsMap());
                 
                ExternalStorage[] es = this.addExternalNN(i, srcs);
-               NameNodeDummy.debug("[FSDirectory]:getFileInfo: Path :" + srcs + "; HdfsFileStatus = " + hfs );
+               if (NameNodeDummy.DEBUG)
+                 NameNodeDummy.debug("[FSDirectory]:getFileInfo: Path :" + srcs + "; HdfsFileStatus = " + hfs );
                ExternalStorage[] es2 = new ExternalStorage[1];
                if (es != null) {
             	   es2[0] = NameNodeDummy.getNameNodeDummyInstance().findBestMatchInOverflowtable(es, srcs);
-            	   NameNodeDummy.debug("[FSDirectory]:getFileInfo: ES Path matched:" + (es2[0] ==null ? null : es2[0].getPath()));
+            	   if (NameNodeDummy.DEBUG)
+            	     NameNodeDummy.debug("[FSDirectory]:getFileInfo: ES Path matched:" + (es2[0] ==null ? null : es2[0].getPath()));
             	   if (es2[0] != null) {
             		   if (hfs == null) {
                 		   hfs = new HdfsFileStatus(es2,srcs);
@@ -2455,7 +2459,8 @@ public class FSDirectory implements Closeable {
       boolean isRawPath, INodesInPath iip)
       throws IOException {
 	  if(NameNodeDummy.useDistributedNN){
-		  NameNodeDummy.debug("[FSdirectory]createFileStatus: needLocation "+needLocation);
+	    if (NameNodeDummy.DEBUG)
+		    NameNodeDummy.debug("[FSdirectory]createFileStatus: needLocation "+needLocation);
 	  }
     if (needLocation) {
       return createLocatedFileStatus(path, node, storagePolicy, snapshot,
@@ -3188,7 +3193,8 @@ public class FSDirectory implements Closeable {
 
   /** Check if a given inode name is reserved */
   public static boolean isReservedName(INode inode) {
-	NameNodeDummy.debug(">>>isReservedName:"+inode);  
+    if (NameNodeDummy.DEBUG)
+	    NameNodeDummy.debug(">>>isReservedName:"+inode);  
     return CHECK_RESERVED_FILE_NAMES
             && Arrays.equals(inode.getLocalNameBytes(), DOT_RESERVED);
   }

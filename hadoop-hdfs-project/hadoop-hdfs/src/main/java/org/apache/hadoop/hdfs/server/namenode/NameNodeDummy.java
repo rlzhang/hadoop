@@ -71,6 +71,7 @@ public class NameNodeDummy {
   private Map<String, List<Long>> blockIds;
   private String originalBpId;
   public static boolean useDistributedNN = true;
+  public static boolean TEST = false;
   public final static boolean DEBUG = false;
   public final static boolean INFOR = true;
   public final static boolean WARN = true;
@@ -89,7 +90,7 @@ public class NameNodeDummy {
     return ROOT.size() == 0 ? true : false;
   }
 
-  private ExternalStorage[] getExternalStorageFromRoot() {
+  private synchronized ExternalStorage[] getExternalStorageFromRoot() {
     List<ExternalStorage> temp = new ArrayList<ExternalStorage>();
     for (OverflowTable ot : ROOT.values()) {
       // log("[nameNodeDummy] getExternalStorageFromRoot: In memory map key "+
@@ -113,14 +114,16 @@ public class NameNodeDummy {
 
   }
 
-  public static boolean isNullOrBlank(Object[] obj) {
+  public synchronized static boolean isNullOrBlank(Object[] obj) {
     return obj == null || obj.length == 0;
   }
 
   public static void assertEqual(Object a, Object b) {
-    if (!a.equals(b)) System.err.println(a + " not equals " + b);
+    if (!a.equals(b))
+      System.err.println(a + " not equals " + b);
   }
-  public static boolean isNullOrBlank(String str) {
+
+  public synchronized static boolean isNullOrBlank(String str) {
     return str == null || str.length() == 0;
   }
 
@@ -166,9 +169,10 @@ public class NameNodeDummy {
   }
 
   public void logs(String logs) {
-      System.out.println(logs);
-      System.out.println(NEWLINE);
+    System.out.println(logs);
+    System.out.println(NEWLINE);
   }
+
   public static void warn(String str) {
     if (NameNodeDummy.WARN)
       System.err.println(str);
@@ -218,9 +222,9 @@ public class NameNodeDummy {
     }
 
     logs(out, " Found path " + subTree.getFullPathName());
-    logs(out, " Display namespace (maximum 10 levels) :");
-    logs(out, this.printNSInfo(subTree, 0, DEFAULT_LEVEL));
-
+    //logs(out, " Display namespace (maximum 10 levels) :");
+    //logs(out, this.printNSInfo(subTree, 0, DEFAULT_LEVEL));
+    boolean suc = false;
     try {
       INodeClient client =
           INodeClient.getInstance(server, NameNodeDummy.TCP_PORT,
@@ -228,12 +232,15 @@ public class NameNodeDummy {
       // INodeClient client = new INodeClient(server,
       // NameNodeDummy.TCP_PORT, NameNodeDummy.UDP_PORT);
       // Send sub-tree to another name node
-      client.sendINode(subTree, out, subTree.getParent().isRoot());
+       suc = client.sendINode(subTree, out, subTree.getParent().isRoot());
+      
+       logs(out, (suc == true ? "Success!" : "Failed!") + ", spend " + (System.currentTimeMillis() - start)
+           + " milliseconds!");
+      if (suc) {
 
-      // Collect blocks information and will notify data node update block
-      // pool id.
-      Map<String, List<Long>> map = getBlockInfos(fs, subTree);
-      this.setBlockIds(map);
+        System.out.println("Success! Clean source namenode and schedule block reports in background!");
+        new RemoveInmemoryNamespace(client, this, fs, subTree).start();
+      }
       // client.cleanup();
     } catch (Exception e) {
       e.printStackTrace();
@@ -241,17 +248,19 @@ public class NameNodeDummy {
           + e.getMessage());
     }
 
-    logs(out, "Spend " + (System.currentTimeMillis() - start)
+    logs(out, "spend " + (System.currentTimeMillis() - start)
+        + " milliseconds!");
+    System.out.println("Spend " + (System.currentTimeMillis() - start)
         + " milliseconds!");
   }
 
-  
-  public synchronized void moveNS(String path, String server) throws IOException {
+  public synchronized void moveNS(String path, String server)
+      throws IOException {
     long start = System.currentTimeMillis();
-    logs( "Starting moving process, moving namespace " + path
-        + " to server " + server);
+    logs("Starting moving process, moving namespace " + path + " to server "
+        + server);
     if (path == null || "".equals(path.trim())) {
-      logs( "Path cannot be empty!");
+      logs("Path cannot be empty!");
     }
 
     if (fs == null) {
@@ -281,6 +290,7 @@ public class NameNodeDummy {
       // Send sub-tree to another name node
       client.sendINode(subTree, null, subTree.getParent().isRoot());
 
+      System.out.println("(2)Client finished waiting server to response!");
       // Collect blocks information and will notify data node update block
       // pool id.
       Map<String, List<Long>> map = getBlockInfos(fs, subTree);
@@ -288,13 +298,14 @@ public class NameNodeDummy {
       // client.cleanup();
     } catch (Exception e) {
       e.printStackTrace();
-      System.out.println("Namenode server not ready, please try again later ... "
-          + e.getMessage());
+      System.out
+          .println("Namenode server not ready, please try again later ... "
+              + e.getMessage());
     }
 
-    logs( "Spend " + (System.currentTimeMillis() - start)
-        + " milliseconds!");
+    logs("Spend " + (System.currentTimeMillis() - start) + " milliseconds!");
   }
+
   /**
    * Block ids to long
    * 
@@ -373,18 +384,21 @@ public class NameNodeDummy {
     LocatedBlocks blocks =
         fs.getBlockLocations(path, 0, prefetchSize, true, true, true);
     List<LocatedBlock> list = blocks.getLocatedBlocks();
-    for (int i = 0; i < list.size(); i++) {
+    Iterator<LocatedBlock> ite = list.iterator();
+    while (ite.hasNext()) {
+    //for (int i = 0; i < list.size(); i++) {
+      LocatedBlock locatedBlock = ite.next();
       LOG.info("Found block informations for moving namespace: blockid="
-          + list.get(i).getBlock().getBlockId() + ";getBlockPoolId="
-          + list.get(i).getBlock().getBlockPoolId() + ";");
-      DatanodeInfo[] di = list.get(i).getLocations();
+          + locatedBlock.getBlock().getBlockId() + ";getBlockPoolId="
+          + locatedBlock.getBlock().getBlockPoolId() + ";");
+      DatanodeInfo[] di = locatedBlock.getLocations();
       for (int j = 0; j < di.length; j++) {
         List<Long> ids = blockIds.get(di[j].getHostName());
         if (ids == null) {
           ids = new ArrayList<Long>();
           blockIds.put(di[j].getHostName(), ids);
         }
-        ids.add(Long.valueOf(list.get(i).getBlock().getBlockId()));
+        ids.add(Long.valueOf(locatedBlock.getBlock().getBlockId()));
         LOG.info("Found datanode include moving namespace blocks:"
             + di[j].getHostName());
       }
@@ -403,8 +417,10 @@ public class NameNodeDummy {
       return list;
     ReadOnlyList<INode> roList =
         inode.asDirectory().getChildrenList(Snapshot.CURRENT_STATE_ID);
-    for (int i = 0; i < roList.size(); i++) {
-      getFilesFromINode(roList.get(i), list);
+    Iterator<INode> ite = roList.iterator();
+    //for (int i = 0; i < roList.size(); i++) {
+    while (ite.hasNext()) {  
+      getFilesFromINode(ite.next(), list);
     }
     return list;
 
@@ -421,13 +437,15 @@ public class NameNodeDummy {
    * @throws UnresolvedLinkException
    * @throws IOException
    */
-  private Map<String, List<Long>> getBlockInfos(FSNamesystem fs, INode inode)
+  Map<String, List<Long>> getBlockInfos(FSNamesystem fs, INode inode)
       throws FileNotFoundException, UnresolvedLinkException, IOException {
     List<String> paths = new ArrayList<String>();
     Map<String, List<Long>> blockIds = new HashMap<String, List<Long>>();
     getFilesFromINode(inode, paths);
-    for (int i = 0; i < paths.size(); i++)
-      getBlockInfos(fs, paths.get(i), blockIds);
+    Iterator<String> ite = paths.iterator();
+    while (ite.hasNext())
+    //for (int i = 0; i < paths.size(); i++)
+      getBlockInfos(fs, ite.next(), blockIds);
     this.setNotifyDatanode(true);
     return blockIds;
   }
@@ -457,13 +475,47 @@ public class NameNodeDummy {
 
     ReadOnlyList<INode> roList =
         root.asDirectory().getChildrenList(Snapshot.CURRENT_STATE_ID);
-
-    for (int i = 0; i < roList.size(); i++) {
-      INode inode = roList.get(i);
+    Iterator<INode> ite = roList.iterator();
+    while (ite.hasNext()) {
+    //for (int i = 0; i < roList.size(); i++) {
+      INode inode = ite.next();
       // sb.append(new String(inode.getLocalNameBytes()) + ",");
       sb.append(printNSInfo(inode, startLevel + 1, max));
     }
     return sb.toString();
+  }
+
+  public void printOverflowTable(OverflowTableNode root) {
+    if (root == null)
+      return;
+    System.out.println(root.key);
+    List<OverflowTableNode> l = new ArrayList<OverflowTableNode>();
+    l.add(root.left);
+    l.add(root.right);
+    printOverflowTable(l);
+    System.out.println("--------------End");
+  }
+
+  public void printOverflowTable(List<OverflowTableNode> nodes) {
+
+    List<OverflowTableNode> l = new ArrayList<OverflowTableNode>();
+    Iterator<OverflowTableNode> ite = nodes.iterator();
+    int i = 0;
+    while (ite.hasNext()) {
+    //for (int i = 0; i < nodes.size(); i++) {
+      OverflowTableNode o = ite.next();
+      if (o != null) {
+        //if (!("null").equals (o.parent.key)) System.out.print("     ");
+        System.out.print((((i++) % 2 == 1) ? " - " : " ") + o.key + "("
+            + o.parent.key + ")");
+        l.add(o.left);
+        l.add(o.right);
+      }
+    }
+    nodes.clear();
+    System.out.println();
+    if (l.size() > 0)
+      printOverflowTable(l);
   }
 
   public BlockManager getBlockManager() {
@@ -616,9 +668,10 @@ public class NameNodeDummy {
     parent = child;
     ReadOnlyList<INode> roList =
         child.asDirectory().getChildrenList(Snapshot.CURRENT_STATE_ID);
-
-    for (int i = 0; i < roList.size(); i++) {
-      filterExternalLink(roList.get(i), link, parent);
+    Iterator<INode> ite = roList.iterator();
+    while (ite.hasNext()) {
+    //for (int i = 0; i < roList.size(); i++) {
+      filterExternalLink(ite.next(), link, parent);
 
     }
   }
@@ -639,8 +692,40 @@ public class NameNodeDummy {
     }
   }
 
+  /**
+   * Remove INode and all reference.
+   * @param path
+   * @return
+   */
   public boolean deletePath(String path) {
-    boolean temp = false;
+    
+    boolean d = false;
+    try {
+      System.out.println("Try to delete directory " + path);
+      d = this.nn.getRpcServer().delete(path, true);
+      System.out.println(d + ",deleted directory " + path);
+    } catch (SnapshotAccessControlException e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    } catch (AccessControlException e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    } catch (FileNotFoundException e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    } catch (SafeModeException e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    } catch (UnresolvedLinkException e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    } catch (IOException e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    }
+    
+    return d;
+    /**
     if (this.getFSNamesystem() != null) {
       this.fs.writeLock();
       try {
@@ -687,13 +772,36 @@ public class NameNodeDummy {
       }
     }
     return temp;
+    **/
   }
 
   // private OverflowTable overflowTable;
 
+  private boolean verifyOverflowTable(ExternalStorage[] es, String rootPath) {
+    boolean returnValue = true;
+    for (int i = 1; i < es.length; i++) {
+      if (!es[i].getPath().startsWith(rootPath)) {
+        returnValue = false;
+      }
+    }
+    return returnValue;
+  }
+
+  /**
+   * To make this API works, es array should have the same root path and es[0] is the top or same level path.
+   * @param es
+   * @return
+   */
   public OverflowTable buildOrAddBST(ExternalStorage[] es) {
     String key = OverflowTable.getNaturalRootFromFullPath(es[0].getPath());
-    debug("[NamenodeDummy] buildOrAddBST: Get key " + key);
+    if (!this.verifyOverflowTable(es, key)) {
+      System.err
+          .println("Verify failed, the root path not match in ExternalStorage array!");
+      new Exception("Wrong path set!").printStackTrace();
+      return null;
+    }
+    if (NameNodeDummy.DEBUG)
+      System.out.println("[NamenodeDummy] buildOrAddBST: Get key " + key);
     if (ROOT.get(key) == null)
       ROOT.put(key, OverflowTable.buildOrAddBST(es, null));
     else
@@ -733,8 +841,8 @@ public class NameNodeDummy {
       boolean alwaysReturnParent) {
     OverflowTable ot = ROOT.get(OverflowTable.getNaturalRootFromFullPath(key));
     // Logs only, have to remove.
-    if (ot != null)
-      this.printlnOverflowTable(ot.getRoot());
+    //if (ot != null)
+    //this.printlnOverflowTable(ot.getRoot());
     return ot == null ? null : ot.findNode(key, false, alwaysReturnParent);
 
   }
@@ -776,17 +884,18 @@ public class NameNodeDummy {
   public OverflowTableNode findLastMatchedPath(String key) {
     OverflowTable ot = ROOT.get(OverflowTable.getNaturalRootFromFullPath(key));
     // Logs only, have to remove.
-    this.printlnOverflowTable(ot.getRoot());
+    //this.printlnOverflowTable(ot.getRoot());
     return ot == null ? null : ot.findNode(key, false, true);
 
   }
 
+  /**
   private void printlnOverflowTable(OverflowTableNode o) {
     PrettyPrintBST.prettyPrintTree(o);
     debug(PrettyPrintBST.sb.toString());
     PrettyPrintBST.sb.setLength(0);
   }
-
+  **/
   public void buildExternalLinkMap_OLD(ExternalStorage[] es) {
     ExternalStorageMapping.addToMap(es);
   }
@@ -845,16 +954,17 @@ public class NameNodeDummy {
    * @param path
    * @return
    */
-  public ExternalStorage findBestMatchInOverflowtable(ExternalStorage[] ess,
-      String path) {
+  public synchronized ExternalStorage findBestMatchInOverflowtable(
+      ExternalStorage[] ess, String path) {
     boolean temp = false;
     int len = 0;
     ExternalStorage match = null;
     for (int i = 0; i < ess.length; i++) {
       ExternalStorage es = ess[i];
-      NameNodeDummy
-          .debug("[NameNodeDummy]findBestMatchInOverflowtable: ES Path :"
-              + es.getPath());
+      if (DEBUG)
+        NameNodeDummy
+            .debug("[NameNodeDummy]findBestMatchInOverflowtable: ES Path :"
+                + es.getPath());
       if (es.getType() == 1) {
         temp = path.startsWith(es.getPath());
       } else if (es.getType() == 2) {
@@ -882,22 +992,25 @@ public class NameNodeDummy {
    * @param path
    * @return
    */
-  public ExternalStorage[] findExternalNN(String path) {
+  public synchronized ExternalStorage[] findExternalNN(String path) {
     path = this.filterNamespace(path);
-    debug("[NameNodeDummy] findExternalNN: Try to find " + path);
-    if (NameNodeDummy.isNullOrBlank(path))
+    if (DEBUG)
+      debug("[NameNodeDummy] findExternalNN: Try to find " + path);
+    if (isNullOrBlank(path))
       return null;
     path = path.trim();
     OverflowTable ot = ROOT.get(OverflowTable.getNaturalRootFromFullPath(path));
     if ("/".equals(path))
       return getExternalStorageFromRoot();
-    debug("[NameNodeDummy] findExternalNN: Cannot find "
-        + OverflowTable.getNaturalRootFromFullPath(path));
+    if (DEBUG)
+      debug("[NameNodeDummy] findExternalNN: Cannot find "
+          + OverflowTable.getNaturalRootFromFullPath(path));
     if (ot == null)
       return null;
     OverflowTableNode found = ot.findNode(path, false, true);
-    debug("[NameNodeDummy] findExternalNN: Found path in other namenode "
-        + found.key);
+    if (DEBUG)
+      debug("[NameNodeDummy] findExternalNN: Found path in other namenode "
+          + found.key);
     return found == null ? null : ot.getAllChildren(found);
   }
 
@@ -957,7 +1070,12 @@ public class NameNodeDummy {
     }
     UpdateRequest u =
         new UpdateRequest(sourceNN, newTargetNN, oldTargetNN, srcs);
-    client.sendTCP(u, out);
+    try {
+      client.sendTCP(u, out);
+    } catch (Exception e) {
+      System.err.println("[NameNodeDummy] Send UpdateRequest failed!"
+          + e.getMessage());
+    }
 
   }
 

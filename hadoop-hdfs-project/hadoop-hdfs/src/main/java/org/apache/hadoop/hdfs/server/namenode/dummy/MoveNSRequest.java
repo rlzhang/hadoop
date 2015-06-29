@@ -14,7 +14,7 @@ public class MoveNSRequest {
 
   // INode directory info
   private List<Long> id = new ArrayList<Long>();
-  private String fullPath;
+  private byte[] fullPath;
   private List<String> localName = new ArrayList<String>();
   private List<String> user = new ArrayList<String>();
   private List<String> group = new ArrayList<String>();
@@ -23,6 +23,8 @@ public class MoveNSRequest {
   private List<Long> accessTime = new ArrayList<Long>();
   private List<Long> nsQuota = new ArrayList<Long>();
   private List<Long> dsQuota = new ArrayList<Long>();
+  
+  private int listSize;
 
   public List<Long> getDsQuota() {
     return dsQuota;
@@ -105,10 +107,10 @@ public class MoveNSRequest {
   }
 
   public String getFullPath() {
-    return fullPath;
+    return new String(fullPath);
   }
 
-  public void setFullPath(String fullPath) {
+  public void setFullPath(byte[] fullPath) {
     this.fullPath = fullPath;
   }
 
@@ -134,6 +136,14 @@ public class MoveNSRequest {
 
   public void setNamespace(String namespace) {
     this.namespace = namespace;
+  }
+
+  public int getListSize() {
+    return listSize;
+  }
+
+  public void setListSize(int listSize) {
+    this.listSize = listSize;
   }
 
 }

@@ -14,7 +14,7 @@ public class OverflowTableNode {
     this.key = path;
   }
 
-  OverflowTableNode(String path, ExternalStorage es, OverflowTableNode parent) { // constructor
+  public OverflowTableNode(String path, ExternalStorage es, OverflowTableNode parent) { // constructor
     if (NameNodeDummy.DEBUG)
       if (this.key == null || "".equals(key.trim())) {
         NameNodeDummy
@@ -32,5 +32,8 @@ public class OverflowTableNode {
 
   public void setValue(ExternalStorage value) {
     this.value = value;
+  }
+  public void setParent(OverflowTableNode parent) {
+    this.parent = parent;
   }
 }

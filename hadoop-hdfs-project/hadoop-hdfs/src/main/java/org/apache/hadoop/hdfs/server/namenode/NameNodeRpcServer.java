@@ -838,6 +838,12 @@ class NameNodeRpcServer implements NamenodeProtocols {
     return namesystem.getFileInfo(src, true);
   }
   
+
+  @Override
+  public HdfsFileStatus getOverflowTable(String src) {
+    return NameNodeDummy.getNameNodeDummyInstance().findOverflowTableByPath(src);
+  }
+  
   @Override // ClientProtocol
   public boolean isFileClosed(String src) throws IOException{
     return namesystem.isFileClosed(src);

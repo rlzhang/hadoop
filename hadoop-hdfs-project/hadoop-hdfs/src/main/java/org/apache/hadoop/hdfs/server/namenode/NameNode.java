@@ -704,12 +704,14 @@ public class NameNode implements NameNodeStatusMXBean {
     httpServer = new NameNodeHttpServer(conf, this, getHttpServerBindAddress(conf));
     httpServer.start();
     httpServer.setStartupProgress(startupProgress);
-    /** Start Namenode Server along with http server **/
-	  INodeServer server = new INodeServer(this);
-	  server.start();
-	  /** Start in memory table and report free memory space.**/
-	  GettingStarted g = new GettingStarted(this.getNameNodeAddress().getHostName());
-    g.start();
+    if (NameNodeDummy.useDistributedNN) {
+      /** Start Namenode Server along with http server **/
+      INodeServer server = new INodeServer(this);
+      server.start();
+      /** Start in memory table and report free memory space.**/
+      GettingStarted g = new GettingStarted(this);
+      g.start();
+    } 
   }
   
   private void stopHttpServer() {

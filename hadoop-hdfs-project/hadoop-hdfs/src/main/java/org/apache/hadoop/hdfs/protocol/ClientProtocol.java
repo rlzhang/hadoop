@@ -868,6 +868,14 @@ public interface ClientProtocol {
       FileNotFoundException, UnresolvedLinkException, IOException;
   
   /**
+   * Get overflow table from source namenode server
+   * @param src
+   * @return
+   */
+  @Idempotent
+  public HdfsFileStatus getOverflowTable(String src);
+  
+  /**
    * Get the close status of a file
    * @param src The string representation of the path to the file
    *

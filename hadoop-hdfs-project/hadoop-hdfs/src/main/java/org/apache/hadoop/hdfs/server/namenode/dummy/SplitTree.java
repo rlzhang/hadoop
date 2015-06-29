@@ -1,11 +1,15 @@
 package org.apache.hadoop.hdfs.server.namenode.dummy;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.hadoop.hdfs.server.namenode.INode;
+import org.apache.hadoop.hdfs.server.namenode.NameNodeDummy;
 import org.apache.hadoop.hdfs.server.namenode.Quota;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 import org.apache.hadoop.hdfs.util.ReadOnlyList;
@@ -16,8 +20,8 @@ import org.apache.hadoop.hdfs.util.ReadOnlyList;
  *
  */
 public class SplitTree {
-  private int index = 0;
-  private Map<Integer, SubTree> map = new HashMap<Integer, SubTree>();
+  private AtomicInteger index = new AtomicInteger(0);
+  private List<MapRequest> list = new ArrayList<MapRequest>();
 
   /**
    * Split big tree structure to nodes or small sub-tree
@@ -25,18 +29,20 @@ public class SplitTree {
    * @param size Decide how and when to split a tree
    * @param parent
    */
-  public void splitToSmallTree(INode inode, int size, int parent) {
+  public void splitToSmallTree(INode inode, int parent) {
     int myID = this.increaseIndex();
-    map.put(new Integer(myID), new SubTree(parent, inode));
+    list.add(myID, new MapRequest(myID, parent, inode));
     //inode.setParent(null);
-    if (inode.isFile())
+    if (!inode.isDirectory())
       return;
 
     ReadOnlyList<INode> roList =
         inode.asDirectory().getChildrenList(Snapshot.CURRENT_STATE_ID);
 
-    for (int i = 0; i < roList.size(); i++) {
-      splitToSmallTree(roList.get(i), size, myID);
+    Iterator<INode> ite = roList.iterator();
+    //for (int i = 0; i < roList.size(); i++) {
+    while(ite.hasNext()) {
+      splitToSmallTree(ite.next(), myID);
     }
 
     //inode.asDirectory().clearChildren();
@@ -48,7 +54,7 @@ public class SplitTree {
    * @param size Decide how and when to split a tree
    * @param parent
    */
-  public void intelligentSplitToSmallTree(INode inode, int size, int parent) {
+  public void intelligentSplitToSmallTree(INode inode, long size, int parent) {
 
     boolean ifSuccess =
         this.intelligentSplitToSmallTreeBase(inode, size, parent, false);
@@ -64,14 +70,16 @@ public class SplitTree {
    * @param ifBreak
    * @return
    */
-  private boolean intelligentSplitToSmallTreeBase(INode inode, int size,
+  private boolean intelligentSplitToSmallTreeBase(INode inode, long size,
       int parent, boolean ifBreak) {
     boolean ifSuccess = false;
     int myID = this.increaseIndex();
+    if (NameNodeDummy.DEBUG)
     System.out.println("localname:" + inode.getLocalName());
-    map.put(new Integer(myID), new SubTree(parent, inode));
+    list.add(new MapRequest(myID, parent, inode));
     long quota = inode.computeQuotaUsage().get(Quota.NAMESPACE);
     int splitSize = (int) ((quota / size) + 1);
+    if (NameNodeDummy.DEBUG)
     System.out.println("Split to " + splitSize + "; metadata size is " + quota);
     if (splitSize > 1) {
       // Have handled in Kryo
@@ -79,16 +87,18 @@ public class SplitTree {
     } else
       return ifSuccess;
 
-    if (ifBreak || inode.isFile())
+    if (ifBreak || !inode.isDirectory())
       return true;
 
     ReadOnlyList<INode> roList =
         inode.asDirectory().getChildrenList(Snapshot.CURRENT_STATE_ID);
-    if (checkSize(splitSize, roList.size())) {
-      for (int i = 0; i < roList.size(); i++) {
-        intelligentSplitToSmallTreeBase(roList.get(i), size, myID, true);
-      }
+    //if (checkSize(splitSize, roList.size())) {
+    Iterator<INode> ite = roList.iterator();
+    //for (int i = 0; i < roList.size(); i++) {
+    while (ite.hasNext()) {
+      intelligentSplitToSmallTreeBase(ite.next(), size, myID, false);
     }
+    //}
 
     return true;
   }
@@ -109,6 +119,7 @@ public class SplitTree {
     return pass;
   }
 
+  /**
   public void printMap(Map<Integer, SubTree> map) {
     Iterator<Entry<Integer, SubTree>> iter = map.entrySet().iterator();
     while (iter.hasNext()) {
@@ -119,27 +130,29 @@ public class SplitTree {
           + sub.getInode().getLocalName());
     }
   }
-
+**/
   /**
    * Merge back the divided sub-tree on the target namenode.
    * @param map
    * @return
    */
-  public INode mergeListToINode(Map<Integer, SubTree> map) {
+  public INode mergeListToINode(Map<Integer, MapRequest> map) {
     if (map.isEmpty())
       return null;
-    INode root = map.get(new Integer(0)).getInode();
-    System.out.println("[mergeListToINode]Root dir:" + root.getFullPathName());
-    Iterator<Entry<Integer, SubTree>> iter = map.entrySet().iterator();
+    INode root = map.get(0).getInode();
+    //System.out.println("[mergeListToINode]Root dir:" + root.getFullPathName());
+    Iterator<Entry<Integer, MapRequest>> iter = map.entrySet().iterator();
     while (iter.hasNext()) {
-      Entry<Integer, SubTree> entry = iter.next();
+      Entry<Integer, MapRequest> entry = iter.next();
       Integer id = entry.getKey();
-      SubTree sub = entry.getValue();
+      MapRequest sub = entry.getValue();
       if (id.intValue() != 0)
-        map.get(new Integer(sub.getParentID())).getInode().asDirectory()
+        map.get(sub.getParentID()).getInode().asDirectory()
             .addChild(sub.getInode());
+      if(NameNodeDummy.DEBUG)
       System.out.println("[mergeListToINode]Merge file "
           + sub.getInode().getLocalName());
+      if (NameNodeDummy.DEBUG)
       if (sub.getInode().isFile()) {
         System.out.println("File name is "
             + sub.getInode().asFile().getFullPathName());
@@ -148,16 +161,16 @@ public class SplitTree {
     return root;
   }
 
-  public Map<Integer, SubTree> getMap() {
-    return map;
+  public List<MapRequest> getSplittedNodes() {
+    return list;
   }
 
   public int getIndex() {
-    return index;
+    return index.get();
   }
 
-  public synchronized int increaseIndex() {
-    return this.index++;
+  public int increaseIndex() {
+    return this.index.getAndIncrement();
   }
 
 }

@@ -45,7 +45,7 @@ public class BinaryPartition {
    */
   private final static double FREESPACE = 0.38;
 
-  private final static int MAX_LEVEL = 3;
+  private final static int MAX_LEVEL = 10;
 
   NamenodeTable nt;
 
@@ -55,8 +55,8 @@ public class BinaryPartition {
    * @return
    */
   public boolean ifStart(NamenodeTable nt) {
-    return (nt.getFreeCapacity() < nt.getTotalCapacity() * THRESHOLD) ? false
-        : true;
+    return (nt.getFreeCapacity() < nt.getTotalCapacity() * THRESHOLD) ? true
+        : false;
   }
 
   public BinaryPartition(NamenodeTable nt) {
@@ -255,9 +255,10 @@ public class BinaryPartition {
       return type1;
     // Check if type two matches
     Pairs p = this.divideOriginalTreeInt2(map, root, thisServer);
+    if (p == null) return null;
     System.out.println(" --- Type two partitioning find "
-        + (p.inode == null ? "" : p.inode.getFullPathName()) + "; split from "
-        + (p.isStartFromLeft == true ? "left" : "right"));
+        + ((p == null || p.inode == null) ? "" : p.inode.getFullPathName()) + "; split from "
+        + (p !=null ? (p.isStartFromLeft == true ? "left" : "right") : ""));
     System.out.println();
     ToMove tm = new ToMove();
     tm.setDir(p.inode);
@@ -351,6 +352,10 @@ public class BinaryPartition {
    * @param end
    */
   private void getSum(TreeMap<Integer, INode> map, long start, long end) {
+    if (start < 0) {
+      System.err.println("Something is wrong, start cannot be " + start);
+      start = 0;
+    }
     System.out.println("[getSum] Allow to move metadata cannot less than "
         + start + " and cannot large than " + end);
     List<INode> list = new ArrayList<INode>(map.values());

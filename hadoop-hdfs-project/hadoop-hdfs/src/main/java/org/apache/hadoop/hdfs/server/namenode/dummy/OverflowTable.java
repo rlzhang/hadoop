@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.regex.Pattern;
 
 import org.apache.hadoop.hdfs.server.namenode.NameNodeDummy;
 
@@ -12,16 +13,26 @@ public class OverflowTable {
   //private final static String NULL = "null";
   private final static String S = "/";
   private OverflowTableNode root;
+  
+
+  private int count = 0;
+
+  private final Pattern pattern = Pattern.compile("/.+");
 
   public OverflowTableNode getRoot() {
     return root;
   }
-
-  static void logs(String str) {
-    NameNodeDummy.debug(str);
+  
+  public boolean isNullOrBlank(String str) {
+    return str == null || str.length() == 0;
+  }
+  
+  public static void logs(String str) {
+    if (NameNodeDummy.DEBUG)
+      NameNodeDummy.debug(str);
   }
 
-  static void logs() {
+  public static void logs() {
     System.out.println();
   }
 
@@ -51,7 +62,7 @@ public class OverflowTable {
       logs("[OverflowTable] findNode: Try to find ----------" + path + " from "
           + root.key);
 
-    if (NameNodeDummy.isNullOrBlank(path)) {
+    if (this.isNullOrBlank(path)) {
       if (NameNodeDummy.INFOR)
         logs("[OverflowTable] findNode: Path cannot be empty " + path);
       return null;
@@ -66,7 +77,7 @@ public class OverflowTable {
     }
 
     String p = getRootFromFullPath(path, root);
-    if (NameNodeDummy.isNullOrBlank(p) || !root.key.equals(p)) {
+    if (this.isNullOrBlank(p) || !root.key.equals(p)) {
       if (NameNodeDummy.INFOR)
         logs("[findNode] Path not existing!!!" + path);
       return null;
@@ -108,9 +119,10 @@ public class OverflowTable {
   private void createParentNodeInt(OverflowTableNode cur, OverflowTableNode or,
       String c, String curPath) {
     cur.right = new OverflowTableNode(c, null, cur);
-    this.createNotExistingNode(cur.right, c, null);
+    //this.createNotExistingNode(cur.right, c, null);
+    cur.right.left = new OverflowTableNode(null, null, cur.right);
     cur.right.right = or;
-
+    or.setParent(cur.right);
     // update key
     cur.right.right.key = curPath.substring(c.length(), curPath.length());
   }
@@ -196,16 +208,27 @@ public class OverflowTable {
    */
   private OverflowTableNode findNodeInt(OverflowTableNode cur, String path,
       boolean createIfNothere, boolean alwaysReturnParent) {
-    if (NameNodeDummy.DEBUG)
-      logs("[OverflowTable] findNodeInt: Try to find " + path);
+    //if (NameNodeDummy.TEST && (count++)%1000 == 0)
+      //System.out.println("[OverflowTable] findNodeInt: Try to find " + path);
     //if (NameNodeDummy.isNullOrBlank(path) || path.length() < 2 || path.charAt(0) != '/') {
-    if (NameNodeDummy.isNullOrBlank(path) || path.length() < 2
+    // Length should euqal or more than 2. Remove this part make it 50% fast.
+    /**
+    if (this.isNullOrBlank(path) || path.length() < 2
         || path.charAt(0) != '/') {
       if (NameNodeDummy.INFOR)
-        logs("[OverflowTable] findNodeInt: Invalidate path!!! " + path);
+        System.out.println("[OverflowTable] findNodeInt: Invalidate path!!! " + path);
+      return null;
+    } **/
+    /**
+     * This one a little bit faster
+     */
+    /**
+    if (!pattern.matcher(path).matches()) {
       return null;
     }
-    logs("[OverflowTable] findNodeInt: cur " + cur.key + "; cur.right "
+    **/
+    if (NameNodeDummy.DEBUG)
+      logs("[OverflowTable] findNodeInt: cur " + cur.key + "; cur.right "
         + cur.right + "; alwaysReturnParent " + alwaysReturnParent);
     if (cur.right == null) {
       /**
@@ -249,7 +272,8 @@ public class OverflowTable {
 
     if (this.findPathCount(cur.right.key) > 1
         && (c = this.getFirstCommonString(cur.right.key, path)) != null
-        && !path.equals(cur.right.key) && !path.startsWith(cur.right.key)) {
+        //&& !path.equals(cur.right.key) && !path.startsWith(cur.right.key)) {
+            && !path.startsWith(cur.right.key)) {
       if (NameNodeDummy.DEBUG)
         logs("[OverflowTable] findNodeInt: Get common parent " + c);
       // Check if try to create node
@@ -319,6 +343,7 @@ public class OverflowTable {
     //if (fullPath.startsWith(cur.key + S) || fullPath.equals(cur.key)) //This one has bad performance
     if (fullPath.equals(cur.key)
         || (fullPath.startsWith(cur.key) && fullPath.charAt(cur.key.length()) == '/'))
+    //if (Pattern.matches(cur.key + "/*", fullPath))
       return cur.key;
     return null;
   }
@@ -371,10 +396,11 @@ public class OverflowTable {
 
   /**
    * Get natural matched first node.
+   * For example: /usr/abc return /usr; /data/user/a/b return /data
    * @param fullPath
    * @return
    */
-  public static String getNaturalRootFromFullPath(String fullPath) {
+  public synchronized static String getNaturalRootFromFullPath(String fullPath) {
     if (fullPath == null)
       return null;
     String t = "";
@@ -471,8 +497,9 @@ public class OverflowTable {
    * @param es
    * @return
    */
-  public static OverflowTable buildOrAddBST(ExternalStorage[] es,
+  public synchronized static OverflowTable buildOrAddBST(ExternalStorage[] es,
       OverflowTable ot) {
+    long s = System.currentTimeMillis();
     if (NameNodeDummy.isNullOrBlank(es))
       return null;
     if (ot == null) {
@@ -484,9 +511,19 @@ public class OverflowTable {
       ot = new OverflowTable(root);
     }
     ot.buildBSTInt(es, false, ot.getRoot());
+    if (NameNodeDummy.DEBUG)
+      System.out.println("[OverflowTable] The API buildOrAddBST spend " + (System.currentTimeMillis() - s));
     return ot;
   }
-
+  public int treeDepth(OverflowTableNode node){
+    if(node == null)
+        return 0;
+    int left = treeDepth(node.left);
+    int right = treeDepth(node.right);
+     
+    int x = left > right ? left+1 : right+1;
+    return x;
+}
   /**
    * Build binary tree from the array.
    * @param es
@@ -508,25 +545,41 @@ public class OverflowTable {
     // null, null);
     logs("[buildBSTInt] Build tree from root " + root.key + ", root has value "
         + root.getValue());
+
+    long s = System.currentTimeMillis();
     for (int i = 0; i < es.length; i++) {
+
       String path = es[i].getPath();
+      if (NameNodeDummy.DEBUG)
+        System.out.println("Full path is " + path);
+      OverflowTableNode o;
+      if ((o = OverflowMap.getFromMap(path)) != null) return o;
+
       // testSplitPath(path);
       if (ifSplit) {
         String[] p = splitPath(path);
         if (p != null) {
-          OverflowTableNode o = this.insert(p[0], null);
+          o = this.insert(p[0], null);
           if (o != null && o.right != null) {
             // logs("[buildBST] Is split to null ?"+p[1]);
             this.createNotExistingNode(o.right, p[1], es[i]);
           }
         } else {
           logs("[buildBSTInt] Don't have to split, directly insert " + path);
-          this.insert(path, es[i]);
+          o = this.insert(path, es[i]);
         }
       } else {
-        this.insert(path, es[i]);
+        o = this.insert(path, es[i]);
       }
+      
+      OverflowMap.addToMap(path, o);
+      if (NameNodeDummy.DEBUG)
+        System.out.println("Full path is " + (o != null ? o.key : null));
     }
+    
+    if (NameNodeDummy.DEBUG)
+      System.out.println(es.length + "[OverflowTable] The API buildBSTInt spend " + (System.currentTimeMillis() - s));
+
     return root;
   }
 
@@ -536,7 +589,7 @@ public class OverflowTable {
     logs("[getAllChildren] Try to get children from " + root.key);
     List<ExternalStorage> children = new ArrayList<ExternalStorage>();
     getAllChildrenInt(root, children);
-    logs("[getAllChildren]  Found children size is " + children.size());
+    logs("[getAllChildren] Found children size is " + children.size());
     return children == null ? null : children.toArray(new ExternalStorage[0]);
   }
 
@@ -603,7 +656,7 @@ public class OverflowTable {
    */
   public OverflowTableNode insert(String key, ExternalStorage value) {
     if (NameNodeDummy.DEBUG)
-      logs("[insert] Try to insert node " + key);
+      System.out.println("[insert] Try to insert node " + key);
     OverflowTableNode otn = this.findNode(key, true, false);
     if (otn == null)
       return null;
@@ -687,261 +740,4 @@ public class OverflowTable {
     recursivelyUpdatePath(o.left, path);
     recursivelyUpdatePath(o.right, path);
   }
-}
-
-class BSTPrinter {
-
-  /**
-   * 
-   * @param root
-   */
-
-  public void printLevelOrder(OverflowTableNode root) {
-    int height = getMaximumHeight(root);
-    for (int i = 1; i <= height; i++) {
-      printLevel(root, i);
-      OverflowTable.logs();
-    }
-  }
-
-  private void printLevel(OverflowTableNode root, int level) {
-    if (root == null)
-      return;
-    if (level == 1) {
-      System.out.print(root.key + " ");
-    } else {
-      printLevel(root.left, level - 1);
-      printLevel(root.right, level - 1);
-    }
-  }
-
-  public void printNode(OverflowTableNode root) {
-    int maxLevel = this.maxLevel(root);
-    this.printNodeInternal(Collections.singletonList(root), 1, maxLevel, false);
-  }
-
-  public void printNode(OverflowTableNode root, boolean showValue) {
-    int maxLevel = this.maxLevel(root);
-    this.printNodeInternal(Collections.singletonList(root), 1, maxLevel,
-        showValue);
-  }
-
-  private static int getMaximumHeight(OverflowTableNode node) {
-    if (node == null)
-      return 0;
-    int leftHeight = getMaximumHeight(node.left);
-    int rightHeight = getMaximumHeight(node.right);
-    return (leftHeight > rightHeight) ? leftHeight + 1 : rightHeight + 1;
-  }
-
-  private static String multiplyString(String string, int times) {
-    StringBuilder builder = new StringBuilder(string.length() * times);
-    for (int i = 0; i < times; ++i) {
-      builder.append(string);
-    }
-    return builder.toString();
-  }
-
-  public static String getStartingSpace(int height) {
-    return multiplyString("  ", ((int) Math.pow(2, height - 1)) / 2);
-  }
-
-  public static String getUnderScores(int height) {
-    int noOfElementsToLeft = ((int) Math.pow(2, height) - 1) / 2;
-    int noOfUnderScores =
-        noOfElementsToLeft - ((int) Math.pow(2, height - 1) / 2);
-
-    return multiplyString("__", noOfUnderScores);
-  }
-
-  public static String getSpaceBetweenTwoNodes(int height) {
-    if (height == 0)
-      return "";
-
-    int noOfNodesInSubTreeOfNode = ((int) Math.pow(2, height - 1)) / 2;
-    /** Sum of spaces of the subtrees of nodes + the parent node */
-    int noOfSpacesBetweenTwoNodes = noOfNodesInSubTreeOfNode * 2 + 1;
-
-    return multiplyString("  ", noOfSpacesBetweenTwoNodes);
-  }
-
-  public static void printNodes(List<OverflowTableNode> queueOfNodes,
-      int noOfNodesAtCurrentHeight, int height) {
-    StringBuilder nodesAtHeight = new StringBuilder();
-
-    String startSpace = getStartingSpace(height);
-    String spaceBetweenTwoNodes = getSpaceBetweenTwoNodes(height);
-
-    String underScore = getUnderScores(height);
-    String underScoreSpace = multiplyString(" ", underScore.length());
-
-    nodesAtHeight.append(startSpace);
-    for (int i = 0; i < noOfNodesAtCurrentHeight; i++) {
-      OverflowTableNode node = (OverflowTableNode) queueOfNodes.get(i);
-      if (node == null) {
-        nodesAtHeight.append(underScoreSpace).append("  ")
-            .append(underScoreSpace).append(spaceBetweenTwoNodes);
-      } else {
-        nodesAtHeight.append(node.left != null ? underScore : underScoreSpace)
-            .append(node.key)
-            .append(node.right != null ? underScore : underScoreSpace)
-            .append(spaceBetweenTwoNodes);
-      }
-    }
-
-    OverflowTable.logs(nodesAtHeight.toString().replaceFirst("\\s+$", ""));
-  }
-
-  public static String getSpaceBetweenLeftRightBranch(int height) {
-    int noOfNodesBetweenLeftRightBranch = ((int) Math.pow(2, height - 1) - 1);
-
-    return multiplyString("  ", noOfNodesBetweenLeftRightBranch);
-  }
-
-  public static String getSpaceBetweenRightLeftBranch(int height) {
-    int noOfNodesBetweenLeftRightBranch = (int) Math.pow(2, height - 1);
-
-    return multiplyString("  ", noOfNodesBetweenLeftRightBranch);
-  }
-
-  public static void printBranches(List<OverflowTableNode> queueOfNodes,
-      int noOfNodesAtCurrentHeight, int height) {
-    if (height <= 1)
-      return;
-    StringBuilder brachesAtHeight = new StringBuilder();
-
-    String startSpace = getStartingSpace(height);
-    String leftRightSpace = getSpaceBetweenLeftRightBranch(height);
-    String rightLeftSpace = getSpaceBetweenRightLeftBranch(height);
-
-    brachesAtHeight.append(startSpace.substring(0, startSpace.length() - 1));
-
-    for (int i = 0; i < noOfNodesAtCurrentHeight; i++) {
-      OverflowTableNode node = queueOfNodes.get(i);
-      if (node == null) {
-        brachesAtHeight.append(" ").append(leftRightSpace).append(" ")
-            .append(rightLeftSpace);
-      } else {
-        brachesAtHeight.append(node.left != null ? "/" : " ")
-            .append(leftRightSpace).append(node.right != null ? "\\" : " ")
-            .append(rightLeftSpace);
-      }
-    }
-
-    System.out.println(brachesAtHeight.toString().replaceFirst("\\s+$", ""));
-  }
-
-  public void prettyPrintTree(OverflowTableNode root) {
-    LinkedList<OverflowTableNode> queueOfNodes =
-        new LinkedList<OverflowTableNode>();
-    int height = getMaximumHeight(root);
-    int level = 0;
-    int noOfNodesAtCurrentHeight = 0;
-
-    queueOfNodes.add(root);
-
-    while (!queueOfNodes.isEmpty() && level < height) {
-      noOfNodesAtCurrentHeight = ((int) Math.pow(2, level));
-
-      printNodes(queueOfNodes, noOfNodesAtCurrentHeight, height - level);
-      printBranches(queueOfNodes, noOfNodesAtCurrentHeight, height - level);
-
-      for (int i = 0; i < noOfNodesAtCurrentHeight; i++) {
-        OverflowTableNode currNode = queueOfNodes.peek();
-        queueOfNodes.remove();
-        if (currNode != null) {
-          queueOfNodes.add(currNode.left);
-          queueOfNodes.add(currNode.right);
-        } else {
-          queueOfNodes.add(null);
-          queueOfNodes.add(null);
-        }
-      }
-      level++;
-    }
-  }
-
-  private void printNodeInternal(List<OverflowTableNode> nodes, int level,
-      int maxLevel, boolean showValue) {
-    if (nodes.isEmpty() || this.isAllElementsNull(nodes))
-      return;
-
-    int floor = maxLevel - level;
-    int endgeLines = (int) Math.pow(2, (Math.max(floor - 1, 0)));
-    int firstSpaces = (int) Math.pow(2, (floor)) - 1;
-    int betweenSpaces = (int) Math.pow(2, (floor + 1)) - 1;
-    // firstSpaces /= 2;
-    // endgeLines /= 2;
-    // betweenSpaces /= 2;
-    this.printWhitespaces(firstSpaces);
-
-    List<OverflowTableNode> newNodes = new ArrayList<OverflowTableNode>();
-    for (OverflowTableNode node : nodes) {
-      if (node != null) {
-        if (showValue)
-          System.out.print(node.key + "; value = " + node.getValue());
-        else
-          System.out.print(node.key);
-        newNodes.add(node.left);
-        newNodes.add(node.right);
-      } else {
-        newNodes.add(null);
-        newNodes.add(null);
-        System.out.print(" ");
-      }
-
-      this.printWhitespaces(betweenSpaces);
-    }
-    OverflowTable.logs("");
-
-    for (int i = 1; i <= endgeLines; i++) {
-      for (int j = 0; j < nodes.size(); j++) {
-        this.printWhitespaces(firstSpaces - i);
-        if (nodes.get(j) == null) {
-          this.printWhitespaces(endgeLines + endgeLines + i + 1);
-          continue;
-        }
-
-        if (nodes.get(j).left != null)
-          System.out.print("/");
-        else
-          this.printWhitespaces(1);
-
-        this.printWhitespaces(i + i - 1);
-
-        if (nodes.get(j).right != null)
-          System.out.print("\\");
-        else
-          this.printWhitespaces(1);
-
-        this.printWhitespaces(endgeLines + endgeLines - i);
-      }
-
-      OverflowTable.logs("");
-    }
-
-    printNodeInternal(newNodes, level + 1, maxLevel, showValue);
-  }
-
-  private void printWhitespaces(int count) {
-    for (int i = 0; i < count; i++)
-      System.out.print(" ");
-  }
-
-  public int maxLevel(OverflowTableNode node) {
-    if (node == null)
-      return 0;
-
-    return Math.max(this.maxLevel(node.left), this.maxLevel(node.right)) + 1;
-  }
-
-  private boolean isAllElementsNull(List<OverflowTableNode> list) {
-    for (Object object : list) {
-      if (object != null)
-        return false;
-    }
-
-    return true;
-  }
-
 }

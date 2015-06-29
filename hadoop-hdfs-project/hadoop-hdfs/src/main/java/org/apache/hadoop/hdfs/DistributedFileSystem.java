@@ -355,7 +355,8 @@ public class DistributedFileSystem extends FileSystem {
     if (newClient == null && found != null && found.key.length() > 1)
       newClient =
           DFSClient.getDfsclient(nn.getMap().get(namespace + found.key));
-    NameNodeDummy.debug("[DistributedFileSystem] getRightDFSClient: newClient "
+    if (NameNodeDummy.DEBUG)
+      NameNodeDummy.debug("[DistributedFileSystem] getRightDFSClient: newClient "
         + newClient + "; target namenode is " + nn.getMap().get(path)
         + "; match node is " + (found == null ? "" : found.key));
     if (newClient == null) {
@@ -385,7 +386,8 @@ public class DistributedFileSystem extends FileSystem {
       @Override
       public FSDataInputStream doCall(final Path p) throws IOException,
           UnresolvedLinkException {
-        NameNodeDummy
+        if (NameNodeDummy.DEBUG)
+          NameNodeDummy
             .debug("[DistributedFileSystem] try to open ------- namespace="
                 + namespace + ":" + getPathName(p));
         DFSInputStream dfsis = null;
@@ -828,7 +830,8 @@ public class DistributedFileSystem extends FileSystem {
   }
 
   private FileStatus[] listStatusInternal(Path p) throws IOException {
-    NameNodeDummy.debug("[DistributedFileSystem]listStatusInternal:" + p);
+    if (NameNodeDummy.DEBUG)
+      NameNodeDummy.debug("[DistributedFileSystem]listStatusInternal:" + p);
     String src = getPathName(p);
 
     // fetch the first batch of entries in the directory
@@ -854,11 +857,13 @@ public class DistributedFileSystem extends FileSystem {
       }
       //if(this.es!=null){
       //if(overflowTableMap.size()>0){
-      NameNodeDummy
+      if (NameNodeDummy.DEBUG)
+        NameNodeDummy
           .debug("=======[DistributedFileSystem]listStatusInternal IS overflow table map empty"
               + nn.isMapEmpty());
       if (!nn.isMapEmpty()) {
-        NameNodeDummy
+        if (NameNodeDummy.DEBUG)
+          NameNodeDummy
             .debug("=======[DistributedFileSystem]listStatusInternal] Getting namespace from other namenode start...; src = "
                 + src);
         //OverflowTable ot = overflowTableMap.get(src);
@@ -876,10 +881,12 @@ public class DistributedFileSystem extends FileSystem {
         }
         **/
         thisListing = ClientMerge.mergeWithThreadPool(es, src, thisListing);
-        NameNodeDummy
+        if (NameNodeDummy.DEBUG)
+          NameNodeDummy
             .debug("=======[DistributedFileSystem]listStatusInternal] Getting namespace from other namenode Done!");
       }
-      NameNodeDummy
+      if (NameNodeDummy.DEBUG)
+        NameNodeDummy
           .debug("[DistributedFileSystem]listStatusInternal: thisListing="
               + thisListing);
     }
@@ -943,7 +950,8 @@ public class DistributedFileSystem extends FileSystem {
       @Override
       public FileStatus[] doCall(final Path p) throws IOException,
           UnresolvedLinkException {
-        NameNodeDummy.debug("[DistributedFileSystem]listStatus:" + p);
+        if (NameNodeDummy.DEBUG)
+          NameNodeDummy.debug("[DistributedFileSystem]listStatus:" + p);
         return listStatusInternal(p);
       }
 
@@ -1048,7 +1056,8 @@ public class DistributedFileSystem extends FileSystem {
    */
   @Override
   public boolean mkdirs(Path f, FsPermission permission) throws IOException {
-    NameNodeDummy.debug("[DistributedFileSystem] mkdirs: make dir " + f);
+    if (NameNodeDummy.DEBUG)
+      NameNodeDummy.debug("[DistributedFileSystem] mkdirs: make dir " + f);
     return mkdirsInternal(f, permission, true);
   }
 
@@ -1378,13 +1387,16 @@ public class DistributedFileSystem extends FileSystem {
                       + fi + "; newFi " + newFi + "; newFi.getEs() "
                       + (newFi == null ? null : newFi.getEs().length));
             if (newFi != null) {
+              /**
               int len = newFi.getEs() != null ? newFi.getEs().length : 0;
+              
               for (int i = 0; i < len; i++) {
                 String esPath = newFi.getEs()[i].getPath();
                 NameNodeDummy
                     .debug("[DistributedFileSystem]getFileStatus:: External storage path = "
                         + esPath);
               }
+              **/
 
               fi = newFi;
             }
