@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
@@ -108,6 +109,8 @@ import com.google.common.base.Preconditions;
 @InterfaceAudience.LimitedPrivate({ "MapReduce", "HBase" })
 @InterfaceStability.Unstable
 public class DistributedFileSystem extends FileSystem {
+
+  private static Map<String,DFSClientProxy> proxyCaches= new java.util.concurrent.ConcurrentHashMap<String, DFSClientProxy>();
   private Path workingDir;
   private URI uri;
   private String homeDirPrefix = DFSConfigKeys.DFS_USER_HOME_DIR_PREFIX_DEFAULT;
@@ -342,13 +345,14 @@ public class DistributedFileSystem extends FileSystem {
   private OverflowTable addToOverflowTable(ExternalStorage[] es) {
     return nn.buildOrAddBST(es);
   }
-
   /**
    * This method is used by client, will check if has to switch DFSClient.
    * @param path
    * @return
    */
   private DFSClientProxy getRightDFSClient(String path) {
+    if (proxyCaches.containsKey(path)) return proxyCaches.get(path);
+    long start = System.currentTimeMillis();
     DFSClient newClient =
         DFSClient.getDfsclient(nn.getMap().get(namespace + path));
     OverflowTableNode found = nn.getPathInServer(path, true);
@@ -366,6 +370,8 @@ public class DistributedFileSystem extends FileSystem {
       lastDfs = newClient;
     }
     DFSClientProxy proxy = new DFSClientProxy(newClient, path);
+    proxyCaches.put(path, proxy);
+    System.out.println("[DistributedFileSystem] getRightDFSClient took " + (System.currentTimeMillis() - start) + " milliseconds!");
     return proxy;
   }
 

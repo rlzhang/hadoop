@@ -94,8 +94,9 @@ public class GettingStarted extends Thread {
     timer.schedule(new ReportAndMoveNSTask(this), 1000, 60 * 1000);
   }
 
-  private void printMap() {
+  void printMap() {
     for (Map.Entry<String, NamenodeTable> entry : memoryMap.entrySet()) {
+      System.out.println("------------------Overflow Table------------------");
       System.out.println("Key : " + entry.getKey() + " Value : "
           + entry.getValue());
     }
@@ -118,6 +119,7 @@ class ReportAndMoveNSTask extends TimerTask {
 
   public void run() {
     g.reportMemory();
+    g.printMap();
     NamenodeTable nt = GettingStarted.getThisNamenode();
     if (bp.ifStart(nt)) {
       System.out.println("Low memory, start to move namespace. Free memory is " + nt.getFreeCapacity());
