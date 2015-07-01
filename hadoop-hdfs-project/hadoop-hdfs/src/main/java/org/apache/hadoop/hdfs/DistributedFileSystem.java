@@ -110,7 +110,6 @@ import com.google.common.base.Preconditions;
 @InterfaceStability.Unstable
 public class DistributedFileSystem extends FileSystem {
 
-  private static Map<String,DFSClient> proxyCaches= new java.util.concurrent.ConcurrentHashMap<String, DFSClient>();
   private Path workingDir;
   private URI uri;
   private String homeDirPrefix = DFSConfigKeys.DFS_USER_HOME_DIR_PREFIX_DEFAULT;
@@ -343,7 +342,7 @@ public class DistributedFileSystem extends FileSystem {
    * @param es
    * @return
    */
-  private OverflowTable addToOverflowTable(ExternalStorage[] es) {
+  private OverflowTable addToOverflowTableOld(ExternalStorage[] es) {
     return nn.buildOrAddBST(es);
   }
   /**
@@ -874,7 +873,11 @@ public class DistributedFileSystem extends FileSystem {
           if (partialListing[i].getEs() != null
               && partialListing[i].getEs().length > 0) {
             //this.mergeES(partialListing[i].getEs());
-            this.addToOverflowTable(partialListing[i].getEs());
+            
+            
+            //this.addToOverflowTable(partialListing[i].getEs());
+            nn.buildOrAddBST(partialListing[i].getEs());
+            
             //NameNodeDummy.log("=======[DistributedFileSystem] Get full path from partialListing " + partialListing[i].getFullName(src));
             //this.addToOverflowTable(partialListing[i].getFullName(src), partialListing[i].getEs());
           }

@@ -789,6 +789,7 @@ public class NameNodeDummy {
    * @return
    */
   public OverflowTable buildOrAddBST(ExternalStorage[] es) {
+    long start = System.currentTimeMillis();
     String key = OverflowTable.getNaturalRootFromFullPath(es[0].getPath());
     if (!this.verifyOverflowTable(es, key)) {
       System.err
@@ -802,6 +803,7 @@ public class NameNodeDummy {
       ROOT.put(key, OverflowTable.buildOrAddBST(es, null));
     else
       ROOT.put(key, OverflowTable.buildOrAddBST(es, ROOT.get(key)));
+    System.out.println("[buildOrAddBST] Take " + (System.currentTimeMillis() - start));
     return ROOT.get(key);
   }
 
