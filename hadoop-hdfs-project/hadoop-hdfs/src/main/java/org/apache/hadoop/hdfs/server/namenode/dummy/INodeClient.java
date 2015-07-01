@@ -464,7 +464,7 @@ public class INodeClient {
   private void waitResponseFromTargetNN() {
     while (!isReponsed) {
       try {
-        Thread.sleep(1000);
+        Thread.sleep(10);
       } catch (InterruptedException e) {
         e.printStackTrace();
       }
@@ -487,7 +487,7 @@ public class INodeClient {
         break;
       }
       try {
-        Thread.sleep(100);
+        Thread.sleep(10);
       } catch (InterruptedException e) {
         e.printStackTrace();
       }

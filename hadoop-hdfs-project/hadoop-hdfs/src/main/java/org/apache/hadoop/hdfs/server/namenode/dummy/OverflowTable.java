@@ -181,11 +181,12 @@ public class OverflowTable {
    * @return
    */
   private OverflowTableNode findPartialMatchedNode(OverflowTableNode cur,
-      String c, String queryPath, String curPath) {
+      String c, String queryPath, String curPath, boolean alwaysReturnParent) {
 
     if (queryPath.length() == c.length()) {
       return cur.right;
     }
+    if (alwaysReturnParent) return cur;
     return null;
   }
 
@@ -280,7 +281,7 @@ public class OverflowTable {
       if (createIfNothere) {
         return this.createNodeDuringFind(cur, c, path, cur.right.key);
       } else {
-        return this.findPartialMatchedNode(cur, c, path, cur.right.key);
+        return this.findPartialMatchedNode(cur, c, path, cur.right.key, alwaysReturnParent);
       }
     }
 

@@ -2,6 +2,10 @@ package org.apache.hadoop.hdfs.server.namenode.dummy.partition;
 
 public class NamenodeTable implements java.io.Serializable {
 
+  /**
+   * 
+   */
+  private static final long serialVersionUID = 1L;
   private int id;
   //MB
   private long freeCapacity;
@@ -43,7 +47,7 @@ public class NamenodeTable implements java.io.Serializable {
 
   @Override
   public String toString() {
-    return this.getNamenodeServer() + ":" + this.getFreeCapacity();
+    return this.getNamenodeServer() + ":" + this.getFreeCapacity() + " of " + this.getTotalCapacity();
 
   }
 

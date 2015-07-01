@@ -95,8 +95,8 @@ public class GettingStarted extends Thread {
   }
 
   void printMap() {
+    System.out.println("------------------Overflow Table------------------");
     for (Map.Entry<String, NamenodeTable> entry : memoryMap.entrySet()) {
-      System.out.println("------------------Overflow Table------------------");
       System.out.println("Key : " + entry.getKey() + " Value : "
           + entry.getValue());
     }

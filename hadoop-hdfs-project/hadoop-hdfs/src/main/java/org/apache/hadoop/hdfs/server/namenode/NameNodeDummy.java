@@ -75,7 +75,7 @@ public class NameNodeDummy {
   // ConcurrentHashMap<String, OverflowTable>();
   private Map<String, OverflowTable> ROOT =
       new ConcurrentHashMap<String, OverflowTable>();
-  private Map<String, String> map = new HashMap<String, String>();
+  //private Map<String, String> map = new HashMap<String, String>();
   /**
    * Server side
    */
@@ -842,6 +842,32 @@ public class NameNodeDummy {
     return ot == null ? null : ot.findNode(key, false, alwaysReturnParent);
 
   }
+  
+  /**
+   * If path in overflow table, return full path.
+   * 
+   * @param key
+   * @return
+   */
+  /**
+   * This method should for client use only, don't try to use in server side!
+   * Remember this method will create new node, to avoid general radix tree problem.
+   * such like /root/a/b has nodes /root and /a/b, if we query /root/a/c, it should return /root/a not /root.
+   * @param key
+   * @param alwaysReturnParent
+   * @return object[0]: node as OverflowTableNode; object[1]: Full path as String.
+   */
+  public Object[] getFullPathInServer(String key,
+      boolean alwaysReturnParent) {
+    Object[] obj = new Object[2];
+    OverflowTable ot = ROOT.get(OverflowTable.getNaturalRootFromFullPath(key));
+   
+    if (ot == null) return null;
+    OverflowTableNode found = ot.findNode(key, true, alwaysReturnParent);
+    obj[0] = found;
+    obj[1] = ot.getFullPath(found);
+    return obj;
+  }
 
   /**
    * Set quota.
@@ -896,6 +922,18 @@ public class NameNodeDummy {
     ExternalStorageMapping.addToMap(es);
   }
 
+  /**
+   * If found matched path in overflow table, and current found node is dummy node, then find its parent which has target namenode host should be the right one.
+   * Otherwise return the current value.
+   * @param found
+   * @return if return null, which means on the default server, the relative path not move to other namenode at all.
+   */
+  public ExternalStorage findHostInPath(OverflowTableNode found) {
+    if (found == null) return null;
+    ExternalStorage es = found.getValue();
+    if (es != null) return es;
+    return findHostInPath(found.parent);
+  }
   public ExternalStorage findExternalNN_OLD(String key, boolean ifRecursive) {
 
     if (key == null || key.length() == 0)
@@ -1082,13 +1120,13 @@ public class NameNodeDummy {
     System.out.println("a".equals(null));
   }
 
-  public Map<String, String> getMap() {
-    return map;
-  }
+//  public Map<String, String> getMap() {
+//    return map;
+//  }
 
-  public void setMap(Map<String, String> map) {
-    this.map = map;
-  }
+  //public void setMap(Map<String, String> map) {
+    //this.map = map;
+  //}
 
   public void setQuota(String src, long nsQuota, long dsQuota) {
     try {
