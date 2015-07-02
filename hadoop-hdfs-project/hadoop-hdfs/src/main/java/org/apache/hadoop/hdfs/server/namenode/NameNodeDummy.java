@@ -71,6 +71,7 @@ public class NameNodeDummy {
   public final static boolean DEBUG = false;
   public final static boolean INFOR = true;
   public final static boolean WARN = true;
+  public final static boolean CreateInMemoryTable = true;
   // private static Map<String, OverflowTable> ROOT = new
   // ConcurrentHashMap<String, OverflowTable>();
   private Map<String, OverflowTable> ROOT =
@@ -184,6 +185,10 @@ public class NameNodeDummy {
       System.out.println(str);
   }
 
+  public synchronized boolean moveNS(FSNamesystem fs, String path, String server,
+      JspWriter out) throws IOException {
+    return this.moveNSBase(fs, path, server, out, false);
+  }
   /**
    * Move namespace sub-tree to different name node.
    * 
@@ -193,18 +198,29 @@ public class NameNodeDummy {
    * @param out
    * @throws IOException
    */
-  public synchronized void moveNS(FSNamesystem fs, String path, String server,
-      JspWriter out) throws IOException {
+  public synchronized boolean moveNSBase(FSNamesystem fs, String path, String server,
+      JspWriter out,boolean auto) throws IOException {
+    boolean isSuc = false;
+    if (nn.isInSafeMode()) {
+      System.out.println("Namenode in safe mode, cancel namespace moving for path " + path);
+      return isSuc;
+    }
     long start = System.currentTimeMillis();
+    if (!auto)
     logs(out, "Starting moving process, moving namespace " + path
         + " to server " + server);
     if (path == null || "".equals(path.trim())) {
+      if (!auto)
       logs(out, "Path cannot be empty!");
+      return isSuc;
     }
 
     if (fs == null) {
+      if (!auto)
       logs(out, "Namenode not ready yet!!!");
-      return;
+      else
+      System.out.println("Namenode not ready yet!!!");
+      return isSuc;
     }
 
     this.fs = fs;
@@ -213,11 +229,16 @@ public class NameNodeDummy {
     INode subTree = fs.dir.getINode(path);
 
     if (subTree == null || subTree.isRoot() || !subTree.isDirectory()) {
-      logs(out, "Invalidate path!");
-      return;
+      if (!auto)
+        logs(out, "Invalidate path!");
+      else
+        System.out.println("Invalidate path!");
+      return isSuc;
     }
-
-    logs(out, " Found path " + subTree.getFullPathName());
+    if (!auto)
+    logs(out, "Found path " + subTree.getFullPathName());
+    else
+      System.out.println("Found path " + subTree.getFullPathName());
     //logs(out, " Display namespace (maximum 10 levels) :");
     //logs(out, this.printNSInfo(subTree, 0, DEFAULT_LEVEL));
     boolean suc = false;
@@ -229,29 +250,48 @@ public class NameNodeDummy {
       // NameNodeDummy.TCP_PORT, NameNodeDummy.UDP_PORT);
       // Send sub-tree to another name node
        suc = client.sendINode(subTree, out, subTree.getParent().isRoot());
-      
+       System.out.println("(2)Client finished waiting server to response!");
+       if (!auto)
        logs(out, (suc == true ? "Success!" : "Failed!") + ", spend " + (System.currentTimeMillis() - start)
            + " milliseconds!");
+       else {
+         System.out.println((suc == true ? "Success!" : "Failed!") + ", spend " + (System.currentTimeMillis() - start)
+             + " milliseconds!");
+       }
       if (suc) {
-
+        isSuc = true;
         System.out.println("Success! Clean source namenode and schedule block reports in background!");
         new RemoveInmemoryNamespace(client, this, fs, subTree).start();
       }
       // client.cleanup();
     } catch (Exception e) {
       e.printStackTrace();
+      if (!auto)
       out.println("Namenode server not ready, please try again later ... "
           + e.getMessage());
+      else {
+        System.out.println("Namenode server not ready, please try again later ... "
+            + e.getMessage());
+      }
     }
-
+    if (!auto)
     logs(out, "spend " + (System.currentTimeMillis() - start)
         + " milliseconds!");
     System.out.println("Spend " + (System.currentTimeMillis() - start)
         + " milliseconds!");
+    return isSuc;
   }
 
-  public synchronized void moveNS(String path, String server)
+  public synchronized boolean moveNSAutomatically(String path, String server)
       throws IOException {
+    return this.moveNSBase(this.getFSNamesystem(), path, server, null,true);
+  }
+  public synchronized void moveNSOLD(String path, String server)
+      throws IOException {
+    if (nn.isInSafeMode()) {
+      System.out.println("Namenode is in safe mode, cancel namespace moving for path " + path);
+      return;
+    }
     long start = System.currentTimeMillis();
     logs("Starting moving process, moving namespace " + path + " to server "
         + server);
@@ -274,8 +314,8 @@ public class NameNodeDummy {
     }
 
     logs(" Found path " + subTree.getFullPathName());
-    logs(" Display namespace (maximum 10 levels) :");
-    logs(this.printNSInfo(subTree, 0, DEFAULT_LEVEL));
+    //logs(" Display namespace (maximum 10 levels) :");
+    //logs(this.printNSInfo(subTree, 0, DEFAULT_LEVEL));
 
     try {
       INodeClient client =
@@ -419,6 +459,30 @@ public class NameNodeDummy {
       getFilesFromINode(ite.next(), list);
     }
     return list;
+
+  }
+  
+  /**
+   * Get total blocks in path.
+   * @param inode
+   * @return
+   */
+  public long numBlocks(INode inode) {
+
+    if (inode.isFile()) {
+      return inode.asFile().numBlocks();
+    }
+    if (!inode.isDirectory())
+      return 0;
+    ReadOnlyList<INode> roList =
+        inode.asDirectory().getChildrenList(Snapshot.CURRENT_STATE_ID);
+    //Iterator<INode> ite = roList.iterator();
+    long total = 0;
+    for (int i = 0; i < roList.size(); i++) {
+    //while (ite.hasNext()) {
+      total += numBlocks(roList.get(i));
+    }
+    return total;
 
   }
 
@@ -643,7 +707,7 @@ public class NameNodeDummy {
    * @param link
    * @param parent
    */
-  public void filterExternalLink(INode child, INodeExternalLink link,
+  public synchronized void filterExternalLink(INode child, INodeExternalLink link,
       INode parent) {
 
     if (child instanceof INodeExternalLink) {
@@ -664,11 +728,12 @@ public class NameNodeDummy {
     parent = child;
     ReadOnlyList<INode> roList =
         child.asDirectory().getChildrenList(Snapshot.CURRENT_STATE_ID);
-    Iterator<INode> ite = roList.iterator();
-    while (ite.hasNext()) {
-    //for (int i = 0; i < roList.size(); i++) {
-      filterExternalLink(ite.next(), link, parent);
-
+    
+    //Iterator<INode> ite = roList.iterator();
+    //while (ite.hasNext()) {
+    for (int i = 0; i < roList.size(); i++) {
+      //filterExternalLink(ite.next(), link, parent);
+      filterExternalLink(roList.get(i), link, parent);
     }
   }
 
@@ -803,7 +868,7 @@ public class NameNodeDummy {
       ROOT.put(key, OverflowTable.buildOrAddBST(es, null));
     else
       ROOT.put(key, OverflowTable.buildOrAddBST(es, ROOT.get(key)));
-    System.out.println("[buildOrAddBST] Take " + (System.currentTimeMillis() - start));
+    System.out.println("[buildOrAddBST] Take " + (System.currentTimeMillis() - start) + " milliseconds.");
     return ROOT.get(key);
   }
 
@@ -984,7 +1049,7 @@ public class NameNodeDummy {
   }
 
   /**
-   * Check if path bellow to this overflow table record.
+   * Check if path belong to this overflow table record.
    * 
    * @param es
    * @param path
@@ -1022,6 +1087,28 @@ public class NameNodeDummy {
     return match;
   }
 
+  /**
+   * For server side use, get matched node or parent from overflow table(Binary Radix Tree).
+   * @param path
+   * @return
+   */
+  public synchronized OverflowTableNode findNode(String path) {
+    path = this.filterNamespace(path);
+    if (DEBUG)
+      debug("[NameNodeDummy] findNode: Try to find " + path);
+    if (isNullOrBlank(path) || "/".equals(path))
+      return null;
+    path = path.trim();
+    OverflowTable ot = ROOT.get(OverflowTable.getNaturalRootFromFullPath(path));
+    if (ot == null)
+      return null;
+    OverflowTableNode found = ot.findNode(path, false, true);
+    if (DEBUG)
+      debug("[NameNodeDummy] findExternalNN: Found path in other namenode "
+          + found.key);
+    return found;
+  }
+  
   /**
    * If path outside current NN?
    * 

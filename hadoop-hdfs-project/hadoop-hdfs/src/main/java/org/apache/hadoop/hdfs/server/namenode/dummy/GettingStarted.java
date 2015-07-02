@@ -37,6 +37,10 @@ public class GettingStarted extends Thread {
     //g.start();
   }
 
+  static boolean isRun = false;
+  public static void setRun(boolean run) {
+    GettingStarted.isRun = run;
+  }
   public GettingStarted(NameNode nn) {
     init();
     this.nn = nn;
@@ -47,6 +51,7 @@ public class GettingStarted extends Thread {
     return n;
   }
 
+  @Deprecated
   private static long getFreeMemory() {
     long free = Runtime.getRuntime().freeMemory();
     System.out.println("free memory: " + free / MB);
@@ -61,7 +66,6 @@ public class GettingStarted extends Thread {
   void reportMemory() {
     //long free = getFreeMemory() / MB;
     long total = Runtime.getRuntime().maxMemory() / MB;
-    
     MemoryMXBean mem = ManagementFactory.getMemoryMXBean();
     MemoryUsage heap = mem.getHeapMemoryUsage();
     long free = (heap.getMax()/MB) - (heap.getUsed()/MB);
@@ -101,6 +105,8 @@ public class GettingStarted extends Thread {
           + entry.getValue());
     }
   }
+  
+  
 }
 
 /**
@@ -109,6 +115,7 @@ public class GettingStarted extends Thread {
  *
  */
 class ReportAndMoveNSTask extends TimerTask {
+  
   GettingStarted g;
   BinaryPartition bp = new BinaryPartition();
   GettingStartedClient client = new GettingStartedClient();
@@ -117,16 +124,20 @@ class ReportAndMoveNSTask extends TimerTask {
     this.g = g;
   }
 
+
   public void run() {
     g.reportMemory();
     g.printMap();
     NamenodeTable nt = GettingStarted.getThisNamenode();
-    if (bp.ifStart(nt)) {
+    if (!GettingStarted.isRun && bp.ifStart(nt)) {
+      GettingStarted.isRun = true;
       System.out.println("Low memory, start to move namespace. Free memory is " + nt.getFreeCapacity());
       // Pre-decision
       boolean success = this.preDecision();
       if (!success)
-        this.divideOriginalTree();
+        success = this.divideOriginalTree();
+      if (!success) GettingStarted.isRun = false;
+      //isRun = false;
     }
     //NameNodeDummy.debug("Time's up! " + new Date().toLocaleString());
   }
@@ -141,10 +152,10 @@ class ReportAndMoveNSTask extends TimerTask {
       ToMove to = moveOut.get(i);
       if (to.getDir() != null && to.getTargetNN() != null) {
         try {
-          NameNodeDummy.getNameNodeDummyInstance().moveNS(
+          returnValue = NameNodeDummy.getNameNodeDummyInstance().moveNSAutomatically(
               to.getDir().getFullPathName(),
               to.getTargetNN().getNamenodeServer());
-          returnValue = true;
+         // returnValue = true;
         } catch (IOException e) {
           e.printStackTrace();
           System.err.println("Failed to move metadata in pre-decision "
@@ -157,7 +168,8 @@ class ReportAndMoveNSTask extends TimerTask {
     return returnValue;
   }
 
-  public void divideOriginalTree() {
+  public boolean divideOriginalTree() {
+    boolean isSuc = false;
     // Divide original tree
     ToMove tm =
         bp.divideOriginalTree(client.getMap(), NameNodeDummy
@@ -166,12 +178,12 @@ class ReportAndMoveNSTask extends TimerTask {
     
     if (tm == null) {
       System.err.println("Cannot find a way to divide namespace tree, try to increase MAX_LEVEL instead !");
-      return;
+      return isSuc;
     }
     if (tm.getType() == 1) {
       try {
-        NameNodeDummy.getNameNodeDummyInstance()
-            .moveNS(tm.getDir().getFullPathName(),
+        isSuc = NameNodeDummy.getNameNodeDummyInstance()
+            .moveNSAutomatically(tm.getDir().getFullPathName(),
                 tm.getTargetNN().getNamenodeServer());
       } catch (IOException e) {
         e.printStackTrace();
@@ -184,7 +196,7 @@ class ReportAndMoveNSTask extends TimerTask {
       while (ite.hasNext()) {
         INodeDirectory dir = ite.next();
         try {
-          NameNodeDummy.getNameNodeDummyInstance().moveNS(
+          isSuc = NameNodeDummy.getNameNodeDummyInstance().moveNSAutomatically(
               dir.getFullPathName(), tm.getTargetNN().getNamenodeServer());
         } catch (IOException e) {
           e.printStackTrace();
@@ -192,5 +204,6 @@ class ReportAndMoveNSTask extends TimerTask {
       }
       //System.err.println("Not support this type of moving yet!");
     }
+    return isSuc;
   }
 }

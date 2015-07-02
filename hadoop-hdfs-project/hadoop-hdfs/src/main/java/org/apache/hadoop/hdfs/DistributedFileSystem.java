@@ -853,70 +853,62 @@ public class DistributedFileSystem extends FileSystem {
     }.resolve(this, absF);
   }
 
-  private FileStatus[] listStatusInternal(Path p) throws IOException {
-    if (NameNodeDummy.DEBUG)
-      NameNodeDummy.debug("[DistributedFileSystem]listStatusInternal:" + p);
-    String src = getPathName(p);
-
-    // fetch the first batch of entries in the directory
-    // DirectoryListing thisListing = (olddfs==null?dfs:olddfs).listPaths(
-    DirectoryListing thisListing =
-        dfs.listPaths(src, HdfsFileStatus.EMPTY_NAME);
-    // NameNodeDummy.log("[DistributedFileSystem]listStatusInternal: thisListing = " + thisListing);
-    if (NameNodeDummy.useDistributedNN) {
-      if (thisListing != null) {
-        HdfsFileStatus[] partialListing = thisListing.getPartialListing();
-        for (int i = 0; i < partialListing.length; i++) {
-          if (NameNodeDummy.DEBUG)
-            NameNodeDummy.debug("=======[DistributedFileSystem]partialListing:"
-                + partialListing[i].getEs().length);
-          if (partialListing[i].getEs() != null
-              && partialListing[i].getEs().length > 0) {
-            //this.mergeES(partialListing[i].getEs());
-            
-            
-            //this.addToOverflowTable(partialListing[i].getEs());
-            nn.buildOrAddBST(partialListing[i].getEs());
-            
-            //NameNodeDummy.log("=======[DistributedFileSystem] Get full path from partialListing " + partialListing[i].getFullName(src));
-            //this.addToOverflowTable(partialListing[i].getFullName(src), partialListing[i].getEs());
-          }
+  /**
+   * Get overflow table from namenode server for client.
+   * @param thisListing
+   * @param src
+   */
+  private DirectoryListing updateStatusInternal(DirectoryListing thisListing, String src) {
+    if (thisListing != null) {
+      HdfsFileStatus[] partialListing = thisListing.getPartialListing();
+      for (int i = 0; i < partialListing.length; i++) {
+        if (NameNodeDummy.DEBUG)
+          NameNodeDummy.debug("=======[DistributedFileSystem]partialListing:"
+              + partialListing[i].getEs().length);
+        if (partialListing[i].getEs() != null
+            && partialListing[i].getEs().length > 0) {
+          nn.buildOrAddBST(partialListing[i].getEs());
         }
       }
-      //if(this.es!=null){
-      //if(overflowTableMap.size()>0){
+    }
+    
+    if (!nn.isMapEmpty()) {
       if (NameNodeDummy.DEBUG)
         NameNodeDummy
-          .debug("=======[DistributedFileSystem]listStatusInternal IS overflow table map empty"
-              + nn.isMapEmpty());
-      if (!nn.isMapEmpty()) {
-        if (NameNodeDummy.DEBUG)
-          NameNodeDummy
             .debug("=======[DistributedFileSystem]listStatusInternal] Getting namespace from other namenode start...; src = "
                 + src);
-        //OverflowTable ot = overflowTableMap.get(src);
-        //ExternalStorage[] es = ot.getAllChildren(ot.getRoot());
-        ExternalStorage[] es = nn.findExternalNN(src);
-        /**
-        for(int i =0;i<es.length;i++){
-        String path = "/" + INodeServer.PREFIX+es[i].getSourceNNServer()+src;
-          	NameNodeDummy.log(path+"[DistributedFileSystem]listStatusInternal======:"+es[i].getPath());
-        NameNodeDummy.log("=======[DistributedFileSystem]listStatusInternal Getting namespace from namenode "+es[i].getTargetNNServer());
-        DirectoryListing thisListing2 = DFSClient.getDfsclient(es[i].getTargetNNServer()).listPaths(
-        		path, HdfsFileStatus.EMPTY_NAME);
-        // Have to add threads here.
-        thisListing = DirectoryListing.merge(thisListing, thisListing2);
-        }
-        **/
-        thisListing = ClientMerge.mergeWithThreadPool(es, src, thisListing);
-        if (NameNodeDummy.DEBUG)
-          NameNodeDummy
-            .debug("=======[DistributedFileSystem]listStatusInternal] Getting namespace from other namenode Done!");
+      
+      ExternalStorage[] es = nn.findExternalNN(src);
+      /**
+      for(int i =0;i<es.length;i++){
+      String path = "/" + INodeServer.PREFIX+es[i].getSourceNNServer()+src;
+          NameNodeDummy.log(path+"[DistributedFileSystem]listStatusInternal======:"+es[i].getPath());
+      NameNodeDummy.log("=======[DistributedFileSystem]listStatusInternal Getting namespace from namenode "+es[i].getTargetNNServer());
+      DirectoryListing thisListing2 = DFSClient.getDfsclient(es[i].getTargetNNServer()).listPaths(
+          path, HdfsFileStatus.EMPTY_NAME);
+      // Have to add threads here.
+      thisListing = DirectoryListing.merge(thisListing, thisListing2);
       }
+      **/
+      thisListing = ClientMerge.mergeWithThreadPool(es, src, thisListing);
       if (NameNodeDummy.DEBUG)
         NameNodeDummy
+            .debug("=======[DistributedFileSystem]listStatusInternal] Getting namespace from other namenode Done!");
+    }
+    if (NameNodeDummy.DEBUG)
+      NameNodeDummy
           .debug("[DistributedFileSystem]listStatusInternal: thisListing="
               + thisListing);
+    return thisListing;
+  }
+  
+  private FileStatus[] listStatusInternal(Path p) throws IOException {
+    String src = getPathName(p);
+    
+    DirectoryListing thisListing =
+        dfs.listPaths(src, HdfsFileStatus.EMPTY_NAME);
+    if (NameNodeDummy.useDistributedNN) {
+      thisListing = this.updateStatusInternal(thisListing, src);
     }
 
     if (thisListing == null) { // the directory does not exist

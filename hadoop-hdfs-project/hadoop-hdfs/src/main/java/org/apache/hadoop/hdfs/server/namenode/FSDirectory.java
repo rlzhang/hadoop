@@ -32,6 +32,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+
 import com.google.protobuf.InvalidProtocolBufferException;
 
 import org.apache.hadoop.HadoopIllegalArgumentException;
@@ -86,6 +87,7 @@ import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.BlockUCState;
 import org.apache.hadoop.hdfs.server.namenode.INode.BlocksMapUpdateInfo;
 import org.apache.hadoop.hdfs.server.namenode.INodeReference.WithCount;
 import org.apache.hadoop.hdfs.server.namenode.dummy.ExternalStorage;
+import org.apache.hadoop.hdfs.server.namenode.dummy.OverflowTableNode;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.DirectorySnapshottableFeature;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot.Root;
@@ -1437,8 +1439,6 @@ public class FSDirectory implements Closeable {
       if (targetNode == null)
         return null;
 
-      /** Test Only! **/
-      //NameNodeDummy.debug("[FSDirectory]getListing:targetNode:"+targetNode.getFullPathName());
       byte parentStoragePolicy = isSuperUser ?
           targetNode.getStoragePolicyID() : BlockStoragePolicySuite.ID_UNSPECIFIED;
       
@@ -1465,9 +1465,10 @@ public class FSDirectory implements Closeable {
         listing[i] = createFileStatus(cur.getLocalNameBytes(), cur, needLocation,
             getStoragePolicyID(curPolicy, parentStoragePolicy), snapshot,
             isRawPath, inodesInPath);
-        /** Add overflowing table **/
-
+        
         if(NameNodeDummy.useDistributedNN){
+          /** Add overflowing table **/
+          // Typically for client LS command.
         	if(cur.isExternalLink()){
         	  if (NameNodeDummy.DEBUG)
         		  NameNodeDummy.debug("[FSDirectory]getListing: Found ExternalLink!!! cur:"+cur.getFullPathName());
@@ -1572,36 +1573,73 @@ public class FSDirectory implements Closeable {
           policyId, inodesInPath.getPathSnapshotId(), isRawPath,
           inodesInPath));
           if (NameNodeDummy.useDistributedNN){
-        	  if (i != null){
-        	    if (NameNodeDummy.DEBUG)
-        		    NameNodeDummy.debug("[FSDirectory]:getFileInfo: last INode = " + i.getFullPathName());
-        	  }
-                  
-                if (i !=null && i.isExternalLink())
-                  NameNodeDummy.debug("[FSDirectory]:getFileInfo: Found ExternalLink INode: "+i.getFullPathName()+";getEsMap:"+i.asExternalLink().getEsMap());
-                
-               ExternalStorage[] es = this.addExternalNN(i, srcs);
-               if (NameNodeDummy.DEBUG)
-                 NameNodeDummy.debug("[FSDirectory]:getFileInfo: Path :" + srcs + "; HdfsFileStatus = " + hfs );
-               ExternalStorage[] es2 = new ExternalStorage[1];
-               if (es != null) {
-            	   es2[0] = NameNodeDummy.getNameNodeDummyInstance().findBestMatchInOverflowtable(es, srcs);
-            	   if (NameNodeDummy.DEBUG)
-            	     NameNodeDummy.debug("[FSDirectory]:getFileInfo: ES Path matched:" + (es2[0] ==null ? null : es2[0].getPath()));
-            	   if (es2[0] != null) {
-            		   if (hfs == null) {
-                		   hfs = new HdfsFileStatus(es2,srcs);
-                	   } else 
-                		   hfs.setEs(es2);
-            	   }
-            	   
-               }
-               
+        	  hfs = this.setOverflowTable(i, srcs, hfs);  
           }
        return hfs;
     } finally {
       readUnlock();
     }
+  }
+  
+  /**
+   * If query path in other NN, let client know.
+   * @param i
+   * @param srcs
+   * @param hfs
+   * @return
+   */
+  private HdfsFileStatus setOverflowTable(INode i, String srcs, HdfsFileStatus hfs) {
+    ExternalStorage es = NameNodeDummy.getNameNodeDummyInstance().findHostInPath(NameNodeDummy.getNameNodeDummyInstance().findNode(srcs));
+    if (es != null) {
+      if (hfs == null) {
+        hfs = new HdfsFileStatus(new ExternalStorage[]{es}, srcs);
+      } else
+        hfs.setEs(new ExternalStorage[]{es});
+    }
+    return hfs;
+  }
+  
+  /**
+   * This is a working workflow, has been replaced above, but keep here for future reference.
+   * @param i
+   * @param srcs
+   * @param hfs
+   * @return
+   */
+  private HdfsFileStatus setOverflowTableOld(INode i, String srcs, HdfsFileStatus hfs) {
+    if (i != null) {
+      if (NameNodeDummy.DEBUG)
+        NameNodeDummy.debug("[FSDirectory]:getFileInfo: last INode = "
+            + i.getFullPathName());
+    }
+
+    if (i != null && i.isExternalLink())
+      NameNodeDummy
+          .debug("[FSDirectory]:getFileInfo: Found ExternalLink INode: "
+              + i.getFullPathName() + ";getEsMap:"
+              + i.asExternalLink().getEsMap());
+
+    ExternalStorage[] es = this.addExternalNN(i, srcs);
+    if (NameNodeDummy.DEBUG)
+      NameNodeDummy.debug("[FSDirectory]:getFileInfo: Path :" + srcs
+          + "; HdfsFileStatus = " + hfs);
+    ExternalStorage[] es2 = new ExternalStorage[1];
+    if (es != null) {
+      es2[0] =
+          NameNodeDummy.getNameNodeDummyInstance()
+              .findBestMatchInOverflowtable(es, srcs);
+      if (NameNodeDummy.DEBUG)
+        NameNodeDummy.debug("[FSDirectory]:getFileInfo: ES Path matched:"
+            + (es2[0] == null ? null : es2[0].getPath()));
+      if (es2[0] != null) {
+        if (hfs == null) {
+          hfs = new HdfsFileStatus(es2, srcs);
+        } else
+          hfs.setEs(es2);
+      }
+
+    }
+    return hfs;
   }
   
   /**

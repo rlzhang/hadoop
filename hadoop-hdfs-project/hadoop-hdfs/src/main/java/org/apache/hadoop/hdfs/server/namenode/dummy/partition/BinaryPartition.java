@@ -3,6 +3,7 @@ package org.apache.hadoop.hdfs.server.namenode.dummy.partition;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.ConcurrentModificationException;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -10,8 +11,10 @@ import java.util.Map.Entry;
 import java.util.Queue;
 import java.util.TreeMap;
 
+import org.apache.hadoop.fs.ContentSummary;
 import org.apache.hadoop.hdfs.server.namenode.INode;
 import org.apache.hadoop.hdfs.server.namenode.INodeDirectory;
+import org.apache.hadoop.hdfs.server.namenode.NameNodeDummy;
 import org.apache.hadoop.hdfs.server.namenode.Quota;
 import org.apache.hadoop.hdfs.server.namenode.dummy.INodeServer;
 import org.apache.hadoop.hdfs.server.namenode.dummy.ToMove;
@@ -25,25 +28,29 @@ import org.apache.hadoop.hdfs.util.ReadOnlyList;
  */
 public class BinaryPartition {
 
+  private final static int MB = 1024 * 1024;
+  //150 bytes
+  private final static int EACH_NODE_SIZE = 150;
   /**
    * If name node capacity less than threshhold, will trigger automatically
    * partition.
    */
-  private final static double THRESHOLD = 0.30;
+  private final static double THRESHOLD = 0.40;
 
   /**
    * How much percentage expect to move out, for knapsack problem.
    */
-  private final static double TARGETMOVE = 0.20;
+  private final static double TARGETMOVE = 0.10;
+  
   /**
    * Give each target name node space to grow after moving namespace
    */
-  private final static double GROWSPACE = 0.10;
+  private final static double GROWSPACE = 0.05;
 
   /**
    * Prepare at least has this number of free space, after source name node moved namespace out.
    */
-  private final static double FREESPACE = 0.38;
+  private final static double FREESPACE = 0.50;
 
   private final static int MAX_LEVEL = 10;
 
@@ -234,9 +241,10 @@ public class BinaryPartition {
             + (nt.getFreeCapacity() + sizeToMove)
             + "; expect free space "
             + nt.getTotalCapacity() * freeSpace);
-    System.out.println();
-    return ((nt.getFreeCapacity() + sizeToMove) > nt.getTotalCapacity()
-        * freeSpace) ? true : false;
+    System.out.println("Total is " + nt.getTotalCapacity());
+    long after = (nt.getFreeCapacity() + sizeToMove);
+    return ( after > nt.getTotalCapacity()
+        * freeSpace && after < nt.getTotalCapacity()) ? true : false;
   }
 
   /**
@@ -499,13 +507,26 @@ public class BinaryPartition {
 
   /**
    * Create a entry here, in case will change calculate method in future.
-   * 
+   * Each INode has 150 bytes
    * @param inode
    * @return
    */
-  private long getINodeSize(INode inode) {
-    long size = inode.computeQuotaUsage().get(Quota.NAMESPACE);
-    System.out.println("Inode " + inode.getFullPathName() + " size is " + size);
+  private long getINodeSize(INode inode) throws ConcurrentModificationException{
+    long size = -1;
+    try{
+      ContentSummary cs = inode.computeContentSummary();
+      //size = inode.computeQuotaUsage().get(Quota.NAMESPACE);
+      // This part didn't calculate blocks size, should fix later.
+      long blocks = NameNodeDummy.getNameNodeDummyInstance().numBlocks(inode);
+      size = cs.getDirectoryCount() + cs.getFileCount() + blocks;
+      System.out.println("INode "  + inode.getFullPathName() + ": blocks:" + blocks  + ": getLength = " + cs.getLength() + ": getQuota = " + cs.getQuota() + ": getSpaceConsumed = " + cs.getSpaceConsumed() + ": getSpaceQuota = " + cs.getSpaceQuota() + ": getFileCount = " + cs.getFileCount() + ": getDirectoryCount = " + cs.getDirectoryCount());
+      size = (long) (size * EACH_NODE_SIZE / MB);
+      System.out.println("Inode " + inode.getFullPathName() + " size(MB) is " + size);
+    } catch(ConcurrentModificationException e) {
+      System.err.println("Cannot getINodeSize. Namenode is busy." + e.getMessage());
+      throw e;
+    }
+    
     return size;
   }
 

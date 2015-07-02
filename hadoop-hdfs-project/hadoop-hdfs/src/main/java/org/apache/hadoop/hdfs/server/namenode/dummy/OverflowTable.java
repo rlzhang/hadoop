@@ -572,8 +572,8 @@ public class OverflowTable {
       } else {
         o = this.insert(path, es[i]);
       }
-      
-      OverflowMap.addToMap(path, o);
+      if (o != null)
+        OverflowMap.addToMap(path, o);
       if (NameNodeDummy.DEBUG)
         System.out.println("Full path is " + (o != null ? o.key : null));
     }

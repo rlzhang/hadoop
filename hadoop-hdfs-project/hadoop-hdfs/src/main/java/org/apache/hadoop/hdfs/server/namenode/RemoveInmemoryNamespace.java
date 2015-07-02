@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.hadoop.fs.UnresolvedLinkException;
+import org.apache.hadoop.hdfs.server.namenode.dummy.GettingStarted;
 import org.apache.hadoop.hdfs.server.namenode.dummy.INodeClient;
 
 public class RemoveInmemoryNamespace extends Thread {
@@ -43,6 +44,8 @@ public class RemoveInmemoryNamespace extends Thread {
     } catch (Exception e) {
       e.printStackTrace();
       System.err.println("Cannot run clean up!");
+    } finally {
+      GettingStarted.setRun(false);
     }
   }
 

@@ -709,8 +709,10 @@ public class NameNode implements NameNodeStatusMXBean {
       INodeServer server = new INodeServer(this);
       server.start();
       /** Start in memory table and report free memory space.**/
-      GettingStarted g = new GettingStarted(this);
-      g.start();
+      if (NameNodeDummy.CreateInMemoryTable) {
+        GettingStarted g = new GettingStarted(this);
+        g.start();
+      }
     } 
   }
   

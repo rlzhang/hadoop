@@ -14,6 +14,8 @@ import org.apache.hadoop.hdfs.server.namenode.NameNodeDummy;
 
 public class ClientMerge extends Thread{
 
+  private final static String SLASH = "/";
+  private final static String BASEURL = SLASH + INodeServer.PREFIX;
 	private DFSClient client;
 	private String path;
 	private static DirectoryListing curListing;
@@ -62,7 +64,8 @@ public class ClientMerge extends Thread{
 		int hash = (server+path).hashCode();
 		return set.contains(hash);
 	}
-	public static DirectoryListing mergeWithThreadPool(ExternalStorage[] es,String src,DirectoryListing curListing){
+
+  public static DirectoryListing mergeWithThreadPool(ExternalStorage[] es,String src,DirectoryListing curListing){
 		if(NameNodeDummy.isNullOrBlank(es)) return curListing;
 		ClientMerge.setCurListing(curListing);
 		latch = new CountDownLatch(es.length);
@@ -70,10 +73,9 @@ public class ClientMerge extends Thread{
 		if (NameNodeDummy.DEBUG)
 			NameNodeDummy.debug("[ClientMerge] Start threads number is "+es.length);
 		for(int i=0;i<es.length;i++){
-			String path = "/" + INodeServer.PREFIX+es[i].getSourceNNServer()+src;
-			if (NameNodeDummy.DEBUG)
-				NameNodeDummy.debug("[ClientMerge] Connect to new name node server "+es[i].getTargetNNServer() + ";path is "+path);
-			if(!isContain(es[i].getTargetNNServer(),path)){
+			String path = BASEURL + es[i].getSourceNNServer() + src;
+			NameNodeDummy.info("[ClientMerge] Connect to new name node server "+es[i].getTargetNNServer() + ";path is "+path);
+			if(!isContain(es[i].getTargetNNServer(),path)) {
 			  excutor.execute(new ClientMerge(DFSClient.getDfsclient(es[i].getTargetNNServer()),path));
 			  addToSet(es[i].getTargetNNServer(),path);
 			} else {
