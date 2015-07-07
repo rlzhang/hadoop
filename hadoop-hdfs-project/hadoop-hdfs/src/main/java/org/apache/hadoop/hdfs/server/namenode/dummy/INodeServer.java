@@ -55,8 +55,8 @@ public class INodeServer extends Thread {
 	public static final Log LOG = LogFactory
 			.getLog(INodeServer.class.getName());
 	public final static String PREFIX = "distr_from_";
-	public final static int WRITE_BUFFER = 1024 * 1024 * 49;
-  public final static int OBJECT_BUFFER = 1024 * 1024 * 30;
+	public final static int WRITE_BUFFER = 1024 * 1024 * 4;
+  public final static int OBJECT_BUFFER = 1024 * 1024 * 3;
   public final static int MAX_GROUP = 10000;
 	public final static String DUMMY = "dummy";
 	public final static int TIME_OUT = 63 * 1000;

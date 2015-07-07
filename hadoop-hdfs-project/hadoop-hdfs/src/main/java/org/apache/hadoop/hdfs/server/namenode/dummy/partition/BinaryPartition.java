@@ -459,13 +459,14 @@ public class BinaryPartition {
     ReadOnlyList<INode> roList =
         root.getChildrenList(Snapshot.CURRENT_STATE_ID);
     Pairs p = new Pairs();
-    Queue<INodeDirectory> queue = new LinkedList<INodeDirectory>();
+    Queue<INode> queue = new LinkedList<INode>();
+    Queue<INodeDirectory> dirQueue = new LinkedList<INodeDirectory>();
     TreeMap<Integer, INode> hashs = new TreeMap<Integer, INode>();
     for (int i = 0; i < roList.size(); i++) {
       INode inode = roList.get(i);
       hashs.put(inode.getLocalName().hashCode(), inode);
       if (inode.isDirectory())
-        queue.add(inode.asDirectory());
+        dirQueue.add(inode.asDirectory());
     }
     /**
      * Check size from left to right
@@ -474,7 +475,8 @@ public class BinaryPartition {
     if (node != null) {
       p.inode = node;
       p.isStartFromLeft = true;
-      // p.queue
+      p.allQueue = queue;
+      dirQueue.clear();
       return p;
     }
     NamenodeTable cur = map.get(thisServer);
@@ -490,7 +492,7 @@ public class BinaryPartition {
     /**
      * Check size from right to left, don't need for now.
      */
-    /**
+    
     TreeMap<Integer,INode> reversed = new TreeMap<Integer,INode>(Collections.reverseOrder());
     reversed.putAll(hashs);
     System.out.println(" --------------- after reversed the order --------------------- ");
@@ -499,10 +501,11 @@ public class BinaryPartition {
     if(node!=null){
     	p.inode = node;
     	p.isStartFromLeft = false;
+    	p.allQueue = queue;
     	return p;
     }
-    **/
-    p.queue = queue;
+    
+    p.queue = dirQueue;
     return p;
   }
 
@@ -515,7 +518,7 @@ public class BinaryPartition {
    * @return
    */
   private INode calculateINodeSide(TreeMap<Integer, INode> hashs,
-      Queue<INodeDirectory> queue, Map<String, NamenodeTable> map,
+      Queue<INode> queue, Map<String, NamenodeTable> map,
       String thisServer) {
     long size = 0;
     for (INode inode : hashs.values()) {
@@ -524,11 +527,11 @@ public class BinaryPartition {
         //if(this.ifGoodOnSourceNN(map.get(thisServer), size, FREESPACE)){
         if (this.ifHasEnoughCapacityOnTargetNamenode(
             this.getMaxCapacityNamenode(map), size, GROWSPACE)) {
-          queue.clear();
-          //p.inode = inode;
+          queue.add(inode);
           return inode;
         } else {
           //ifLarge = true;
+          queue.add(inode);
           break;
         }
       }
@@ -625,6 +628,7 @@ public class BinaryPartition {
   class Pairs {
     INode inode = null;
     Queue<INodeDirectory> queue = null;
+    Queue<INode> allQueue = null;
     boolean isStartFromLeft = true;
   }
 
