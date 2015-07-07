@@ -77,6 +77,10 @@ public class NameNodeDummy {
   private Map<String, OverflowTable> ROOT =
       new ConcurrentHashMap<String, OverflowTable>();
   //private Map<String, String> map = new HashMap<String, String>();
+  
+  // Mainly for client use
+  private static Map<String, OverflowTable> staticRoot =
+      new ConcurrentHashMap<String, OverflowTable>();
   /**
    * Server side
    */
@@ -85,6 +89,9 @@ public class NameNodeDummy {
 
   public boolean isMapEmpty() {
     return ROOT.size() == 0 ? true : false;
+  }
+  public boolean isClientMapEmpty() {
+    return staticRoot.size() == 0 ? true : false;
   }
 
   private synchronized ExternalStorage[] getExternalStorageFromRoot() {
@@ -209,6 +216,10 @@ public class NameNodeDummy {
     if (!auto)
     logs(out, "Starting moving process, moving namespace " + path
         + " to server " + server);
+    else {
+      System.out.println("Starting moving process, moving namespace " + path
+      + " to server " + server);
+    }
     if (path == null || "".equals(path.trim())) {
       if (!auto)
       logs(out, "Path cannot be empty!");
@@ -630,14 +641,16 @@ public class NameNodeDummy {
     try {
       inode =
           this.addFile(inode.getFullPathName(), inode.getPermissionStatus(),
-              inode.getFileReplication(), inode.getPreferredBlockSize(), inode
+              inode.getFileReplication(), inode.getPreferredBlockSize(),inode
+              .getFileUnderConstructionFeature() == null ? "" : inode
                   .getFileUnderConstructionFeature().getClientName(), inode
+                  .getFileUnderConstructionFeature() == null ? "" : inode
                   .getFileUnderConstructionFeature().getClientMachine());
-      System.out.println("Successfully add file " + inode.getFullPathName()
-          + ";clientName="
-          + inode.getFileUnderConstructionFeature().getClientName()
-          + ";clientMachine="
-          + inode.getFileUnderConstructionFeature().getClientMachine());
+      System.out.println("Successfully add file " + inode.getFullPathName());
+          //+ ";clientName="
+          //+ inode.getFileUnderConstructionFeature().getClientName()
+          //+ ";clientMachine="
+          //+ inode.getFileUnderConstructionFeature().getClientMachine());
       this.getFSNamesystem().getFSDirectory().addToInodeMap(inode);
     } catch (SnapshotAccessControlException e) {
       // TODO Auto-generated catch block
@@ -847,13 +860,21 @@ public class NameNodeDummy {
     }
     return returnValue;
   }
+  
+  public OverflowTable buildOrAddBST(ExternalStorage[] es) {
+    return this.buildOrAddBST(es, ROOT);
+  }
+  
+  public OverflowTable buildOrAddBSTClient(ExternalStorage[] es) {
+    return this.buildOrAddBST(es, staticRoot);
+  }
 
   /**
    * To make this API works, es array should have the same root path and es[0] is the top or same level path.
    * @param es
    * @return
    */
-  public OverflowTable buildOrAddBST(ExternalStorage[] es) {
+  public OverflowTable buildOrAddBST(ExternalStorage[] es, Map<String, OverflowTable> root) {
     long start = System.currentTimeMillis();
     String key = OverflowTable.getNaturalRootFromFullPath(es[0].getPath());
     if (!this.verifyOverflowTable(es, key)) {
@@ -864,12 +885,13 @@ public class NameNodeDummy {
     }
     if (NameNodeDummy.DEBUG)
       System.out.println("[NamenodeDummy] buildOrAddBST: Get key " + key);
-    if (ROOT.get(key) == null)
-      ROOT.put(key, OverflowTable.buildOrAddBST(es, null));
+    if (root.get(key) == null)
+      root.put(key, OverflowTable.buildOrAddBST(es, null));
     else
-      ROOT.put(key, OverflowTable.buildOrAddBST(es, ROOT.get(key)));
+      root.put(key, OverflowTable.buildOrAddBST(es, root.get(key)));
     System.out.println("[buildOrAddBST] Take " + (System.currentTimeMillis() - start) + " milliseconds.");
-    return ROOT.get(key);
+    System.out.println("[buildOrAddBST] Overflow table depth is " + OverflowTable.treeDepth(root.get(key).getRoot()) + " in root dir " + key);
+    return root.get(key);
   }
 
   public String getThefirstNN(String key) {
@@ -916,6 +938,17 @@ public class NameNodeDummy {
    * @param key
    * @return
    */
+  
+  public Object[] getFullPathInServer(String key,
+      boolean alwaysReturnParent) {
+    return this.getFullPathInServer(key, alwaysReturnParent, ROOT);
+  }
+  
+  
+  public Object[] getFullPathInServerClient(String key,
+      boolean alwaysReturnParent) {
+    return this.getFullPathInServer(key, alwaysReturnParent, staticRoot);
+  }
   /**
    * This method should for client use only, don't try to use in server side!
    * Remember this method will create new node, to avoid general radix tree problem.
@@ -925,9 +958,9 @@ public class NameNodeDummy {
    * @return object[0]: node as OverflowTableNode; object[1]: Full path as String.
    */
   public Object[] getFullPathInServer(String key,
-      boolean alwaysReturnParent) {
+      boolean alwaysReturnParent, Map<String, OverflowTable> root) {
     Object[] obj = new Object[2];
-    OverflowTable ot = ROOT.get(OverflowTable.getNaturalRootFromFullPath(key));
+    OverflowTable ot = root.get(OverflowTable.getNaturalRootFromFullPath(key));
    
     if (ot == null) return null;
     OverflowTableNode found = ot.findNode(key, true, alwaysReturnParent);

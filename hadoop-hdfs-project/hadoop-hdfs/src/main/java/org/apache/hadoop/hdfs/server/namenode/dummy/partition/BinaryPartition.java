@@ -41,7 +41,7 @@ public class BinaryPartition {
    * How much percentage expect to move out, for knapsack problem.
    */
   private final static double TARGETMOVE = 0.10;
-  
+
   /**
    * Give each target name node space to grow after moving namespace
    */
@@ -221,7 +221,10 @@ public class BinaryPartition {
         .println("[ifHasEnoughCapacityOnTargetNamenode] The target name node server: expect free space "
             + (THRESHOLD + growSpace)
             * nt.getTotalCapacity()
-            + "; after move in " + (nt.getFreeCapacity() - sizeToMove));
+            + "; after move in "
+            + (nt.getFreeCapacity() - sizeToMove)
+            + "; "
+            + nt.getNamenodeServer());
     return ((THRESHOLD + growSpace) * nt.getTotalCapacity() <= (nt
         .getFreeCapacity() - sizeToMove)) ? true : false;
   }
@@ -241,10 +244,10 @@ public class BinaryPartition {
             + (nt.getFreeCapacity() + sizeToMove)
             + "; expect free space "
             + nt.getTotalCapacity() * freeSpace);
-    System.out.println("Total is " + nt.getTotalCapacity());
+    System.out.println("Total capacity is " + nt.getTotalCapacity());
     long after = (nt.getFreeCapacity() + sizeToMove);
-    return ( after > nt.getTotalCapacity()
-        * freeSpace && after < nt.getTotalCapacity()) ? true : false;
+    return (after > nt.getTotalCapacity() * freeSpace && after < nt
+        .getTotalCapacity()) ? true : false;
   }
 
   /**
@@ -263,10 +266,12 @@ public class BinaryPartition {
       return type1;
     // Check if type two matches
     Pairs p = this.divideOriginalTreeInt2(map, root, thisServer);
-    if (p == null) return null;
+    if (p == null)
+      return null;
     System.out.println(" --- Type two partitioning find "
-        + ((p == null || p.inode == null) ? "" : p.inode.getFullPathName()) + "; split from "
-        + (p !=null ? (p.isStartFromLeft == true ? "left" : "right") : ""));
+        + ((p == null || p.inode == null) ? "" : p.inode.getFullPathName())
+        + "; split from "
+        + (p != null ? (p.isStartFromLeft == true ? "left" : "right") : ""));
     System.out.println();
     ToMove tm = new ToMove();
     tm.setDir(p.inode);
@@ -291,6 +296,52 @@ public class BinaryPartition {
    * @param root
    * @return
    */
+  @Deprecated
+  private ToMove divideOriginalTreeWayOne(Map<String, NamenodeTable> map,
+      INodeDirectory root, String thisServer, double targetNNGrow,
+      double sourceNNFree) {
+    ToMove tm = new ToMove();
+    ReadOnlyList<INode> roList =
+        root.getChildrenList(Snapshot.CURRENT_STATE_ID);
+    Queue<INodeDirectory> queue = new LinkedList<INodeDirectory>();
+    for (int i = 0; i < roList.size(); i++) {
+      INode inode = roList.get(i);
+      if (inode.isDirectory()) {
+
+        NamenodeTable max = this.getMaxCapacityNamenode(map);
+        if (this.ifHasEnoughCapacityOnTargetNamenode(max,
+            this.getINodeSize(inode), targetNNGrow)
+            && this.ifGoodOnSourceNN(map.get(thisServer),
+                this.getINodeSize(inode), sourceNNFree)) {
+          tm.setDir(inode.asDirectory());
+          tm.setTargetNN(max);
+          break;
+        } else {
+          this.addChildrenAsDir(inode.asDirectory(), queue);
+        }
+      }
+    }
+    
+    
+    return tm;
+  }
+
+  /**
+   * Add sub-directories.
+   * @param dir
+   * @param queue
+   */
+  private void addChildrenAsDir(INodeDirectory dir, Queue<INodeDirectory> queue) {
+    ReadOnlyList<INode> roList = dir.getChildrenList(Snapshot.CURRENT_STATE_ID);
+    for (int i = 0; i < roList.size(); i++) {
+      INode inode = roList.get(i);
+      if (inode.isDirectory()) {
+        queue.add(inode.asDirectory());
+      }
+    }
+  }
+
+ 
   private ToMove divideOriginalTreeInt1(Map<String, NamenodeTable> map,
       INodeDirectory root, String thisServer, double targetNNGrow,
       double sourceNNFree) {
@@ -311,7 +362,8 @@ public class BinaryPartition {
           tm.setTargetNN(max);
           return tm;
         } else {
-          queue.add(inode.asDirectory());
+          //queue.add(inode.asDirectory());
+          this.addChildrenAsDir(inode.asDirectory(), queue);
         }
       }
     }
@@ -319,6 +371,7 @@ public class BinaryPartition {
         targetNNGrow, sourceNNFree);
   }
 
+  @Deprecated
   private ToMove divideOriginalTreeInt1Int(Map<String, NamenodeTable> map,
       Queue<INodeDirectory> queue, int level, String thisServer,
       double targetNNGrow, double sourceNNFree) {
@@ -343,7 +396,8 @@ public class BinaryPartition {
           tm.setTargetNN(max);
           return tm;
         } else {
-          queue2.add(inode);
+          //queue2.add(inode);
+          this.addChildrenAsDir(inode.asDirectory(), queue2);
         }
       }
     }
@@ -394,6 +448,7 @@ public class BinaryPartition {
    */
   private Pairs divideOriginalTreeInt2(Map<String, NamenodeTable> map,
       INodeDirectory root, String thisServer) {
+    System.out.println("Trying way 2 to divide tree...");
     Pairs p = this.divideOriginalTreeInt2IntInt(map, root, thisServer);
     if (p.inode != null)
       return p;
@@ -420,6 +475,7 @@ public class BinaryPartition {
     if (node != null) {
       p.inode = node;
       p.isStartFromLeft = true;
+      // p.queue
       return p;
     }
     NamenodeTable cur = map.get(thisServer);
@@ -511,22 +567,31 @@ public class BinaryPartition {
    * @param inode
    * @return
    */
-  private long getINodeSize(INode inode) throws ConcurrentModificationException{
+  private long getINodeSize(INode inode) throws ConcurrentModificationException {
     long size = -1;
-    try{
+    try {
       ContentSummary cs = inode.computeContentSummary();
       //size = inode.computeQuotaUsage().get(Quota.NAMESPACE);
       // This part didn't calculate blocks size, should fix later.
       long blocks = NameNodeDummy.getNameNodeDummyInstance().numBlocks(inode);
       size = cs.getDirectoryCount() + cs.getFileCount() + blocks;
-      System.out.println("INode "  + inode.getFullPathName() + ": blocks:" + blocks  + ": getLength = " + cs.getLength() + ": getQuota = " + cs.getQuota() + ": getSpaceConsumed = " + cs.getSpaceConsumed() + ": getSpaceQuota = " + cs.getSpaceQuota() + ": getFileCount = " + cs.getFileCount() + ": getDirectoryCount = " + cs.getDirectoryCount());
+      System.out.println("INode " + inode.getFullPathName() + ": blocks:"
+          + blocks + ": getLength = " + cs.getLength() + ": getQuota = "
+          + cs.getQuota() + ": getSpaceConsumed = " + cs.getSpaceConsumed()
+          + ": getSpaceQuota = " + cs.getSpaceQuota() + ": getFileCount = "
+          + cs.getFileCount() + ": getDirectoryCount = "
+          + cs.getDirectoryCount());
       size = (long) (size * EACH_NODE_SIZE / MB);
-      System.out.println("Inode " + inode.getFullPathName() + " size(MB) is " + size);
-    } catch(ConcurrentModificationException e) {
-      System.err.println("Cannot getINodeSize. Namenode is busy." + e.getMessage());
+      System.out.println("Inode " + inode.getFullPathName() + " size(MB) is "
+          + size);
+    } catch (ConcurrentModificationException e) {
+      System.err.println("Cannot getINodeSize. Namenode is busy."
+          + e.getMessage());
       throw e;
+    } catch (Exception e) {
+      System.err.println("Cannot getINodeSize." + e.getMessage());
     }
-    
+
     return size;
   }
 

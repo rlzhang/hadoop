@@ -26,7 +26,6 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
@@ -342,9 +341,9 @@ public class DistributedFileSystem extends FileSystem {
    * @param es
    * @return
    */
-  private OverflowTable addToOverflowTableOld(ExternalStorage[] es) {
-    return nn.buildOrAddBST(es);
-  }
+ // private OverflowTable addToOverflowTableOld(ExternalStorage[] es) {
+   // return nn.buildOrAddBST(es);
+ // }
   /**
    * This method is used by client, will check if has to switch DFSClient.
    * Added client cache to speed up query.
@@ -352,7 +351,7 @@ public class DistributedFileSystem extends FileSystem {
    * @return
    */
   private DFSClientProxy getRightDFSClient(String path) {
-    Object[] obj = nn.getFullPathInServer(path, true);
+    Object[] obj = nn.getFullPathInServerClient(path, true);
     if (obj == null) return new DFSClientProxy(dfs, path);
     OverflowTableNode found = (OverflowTableNode) obj[0];
     ExternalStorage es = nn.findHostInPath(found);
@@ -867,12 +866,12 @@ public class DistributedFileSystem extends FileSystem {
               + partialListing[i].getEs().length);
         if (partialListing[i].getEs() != null
             && partialListing[i].getEs().length > 0) {
-          nn.buildOrAddBST(partialListing[i].getEs());
+          nn.buildOrAddBSTClient(partialListing[i].getEs());
         }
       }
     }
     
-    if (!nn.isMapEmpty()) {
+    if (!nn.isClientMapEmpty()) {
       if (NameNodeDummy.DEBUG)
         NameNodeDummy
             .debug("=======[DistributedFileSystem]listStatusInternal] Getting namespace from other namenode start...; src = "
@@ -1365,7 +1364,7 @@ public class DistributedFileSystem extends FileSystem {
 
           if (fi != null && !NameNodeDummy.isNullOrBlank(fi.getEs())) {
             //OverflowTable ot = OverflowTable.buildBSTFromScratch(fi.getEs());
-            OverflowTable ot = nn.buildOrAddBST(fi.getEs());
+            OverflowTable ot = nn.buildOrAddBSTClient(fi.getEs());
             OverflowTableNode f = ot.getFirstNotNullNode(ot.getRoot());
             if (NameNodeDummy.DEBUG)
               NameNodeDummy

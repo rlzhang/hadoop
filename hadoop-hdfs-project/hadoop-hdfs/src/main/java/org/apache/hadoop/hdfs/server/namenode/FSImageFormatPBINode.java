@@ -377,6 +377,7 @@ public final class FSImageFormatPBINode {
         INodeSection.INodeExternalLink s = e.getExternallink();
         List<ExternalStorageMap> esMap = s.getEsMapList();
         ExternalStorage[] externalStorages = new ExternalStorage[esMap.size()];
+        System.out.println("[OverflowTable] size is " + externalStorages.length);
         for (int i = 0, e1 = esMap.size(); i < e1; ++i) {
         	ExternalStorageMap t = esMap.get(i);
         	externalStorages[i] = new ExternalStorage(t.getParentId(),t.getId(),t.getTargetNNServer(),t.getTargetNNPId(),t.getPath(),t.getSourceNNServer());

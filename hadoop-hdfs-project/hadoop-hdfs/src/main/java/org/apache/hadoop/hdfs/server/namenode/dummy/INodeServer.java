@@ -699,6 +699,33 @@ public class INodeServer extends Thread {
 		kryo.register(org.apache.hadoop.hdfs.server.namenode.dummy.MapRequest[].class);
 		//kryo.register(org.apache.hadoop.hdfs.server.namenode.dummy.SubTree.class);
 
+		kryo.register(
+        org.apache.hadoop.hdfs.server.blockmanagement.BlockInfo.class,
+        new Serializer<BlockInfo>() {
+
+          @Override
+          public BlockInfo read(Kryo kryo, Input input,
+              Class<BlockInfo> arg2) {
+            int replication = input.readInt();
+            long bid = input.readLong();
+            long stamp = input.readLong();
+            long blockSize = input.readLong();
+            BlockInfo bi = new BlockInfo(new Block(bid, blockSize,
+                stamp), replication);
+            kryo.reference(bi);
+            return bi;
+          }
+
+          @Override
+          public void write(Kryo kryo, Output out, BlockInfo bi) {
+            int capacity = bi.getCapacity();
+            out.writeInt(capacity);
+            out.writeLong(bi.getBlockId());
+            out.writeLong(bi.getGenerationStamp());
+            out.writeLong(bi.getNumBytes());
+          }
+
+        });
 		kryo.register(org.apache.hadoop.hdfs.server.blockmanagement.BlockInfo[].class);
 
 		kryo.register(Object[].class);
@@ -753,33 +780,7 @@ public class INodeServer extends Thread {
     kryo.register(org.apache.hadoop.hdfs.server.common.HdfsServerConstants.RollingUpgradeStartupOption.class);
 		
 		kryo.register(org.apache.hadoop.hdfs.server.protocol.DatanodeStorage.State.class);
-		kryo.register(
-				org.apache.hadoop.hdfs.server.blockmanagement.BlockInfo.class,
-				new Serializer<BlockInfo>() {
-
-					@Override
-					public BlockInfo read(Kryo kryo, Input input,
-							Class<BlockInfo> arg2) {
-						int replication = input.readInt();
-						long bid = input.readLong();
-						long stamp = input.readLong();
-						long blockSize = input.readLong();
-						BlockInfo bi = new BlockInfo(new Block(bid, blockSize,
-								stamp), replication);
-						kryo.reference(bi);
-						return bi;
-					}
-
-					@Override
-					public void write(Kryo kryo, Output out, BlockInfo bi) {
-						int capacity = bi.getCapacity();
-						out.writeInt(capacity);
-						out.writeLong(bi.getBlockId());
-						out.writeLong(bi.getGenerationStamp());
-						out.writeLong(bi.getNumBytes());
-					}
-
-				});
+		
 
 		// After blockinfo, might can be deleted
 		kryo.register(org.apache.hadoop.hdfs.server.namenode.snapshot.FileWithSnapshotFeature.class);

@@ -2,10 +2,7 @@ package org.apache.hadoop.hdfs.server.namenode.dummy;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.LinkedList;
 import java.util.List;
-import java.util.regex.Pattern;
 
 import org.apache.hadoop.hdfs.server.namenode.NameNodeDummy;
 
@@ -15,9 +12,9 @@ public class OverflowTable {
   private OverflowTableNode root;
   
 
-  private int count = 0;
+ // private int count = 0;
 
-  private final Pattern pattern = Pattern.compile("/.+");
+  //private final Pattern pattern = Pattern.compile("/.+");
 
   public OverflowTableNode getRoot() {
     return root;
@@ -51,7 +48,7 @@ public class OverflowTable {
   }
 
   /**
-   * Always return an insert point, if path belong to the source name node.
+   * Always return an insert point, only if path belong to the source name node.
    * 
    * @param path
    * @return
@@ -516,7 +513,9 @@ public class OverflowTable {
       System.out.println("[OverflowTable] The API buildOrAddBST spend " + (System.currentTimeMillis() - s));
     return ot;
   }
-  public int treeDepth(OverflowTableNode node){
+  
+  
+  public static int treeDepth(OverflowTableNode node){
     if(node == null)
         return 0;
     int left = treeDepth(node.left);
