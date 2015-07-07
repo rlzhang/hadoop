@@ -371,7 +371,6 @@ public class BinaryPartition {
         targetNNGrow, sourceNNFree);
   }
 
-  @Deprecated
   private ToMove divideOriginalTreeInt1Int(Map<String, NamenodeTable> map,
       Queue<INodeDirectory> queue, int level, String thisServer,
       double targetNNGrow, double sourceNNFree) {

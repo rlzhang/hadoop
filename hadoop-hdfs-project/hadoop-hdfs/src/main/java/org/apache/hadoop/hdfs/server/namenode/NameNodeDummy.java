@@ -899,7 +899,6 @@ public class NameNodeDummy {
     if (ot == null)
       return null;
     OverflowTableNode o;
-
     return (o = ot.findNode(key, false, false)) == null ? null
         : (o.getValue() == null ? null : o.getValue().getTargetNNServer());
 
