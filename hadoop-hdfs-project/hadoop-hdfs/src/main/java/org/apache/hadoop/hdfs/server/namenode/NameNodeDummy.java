@@ -87,7 +87,8 @@ public class NameNodeDummy {
    * For client use, store path => namenode address
    * Fix size is 1000.
    */
-  private static  LRUMap lru = new LRUMap(1000);
+  private static Map<String,String> lru = java.util.Collections.synchronizedMap(new LRUMap(10));
+  //private static LRUMap lru = new LRUMap(10);
   // path => ExternalStorage mapping.
   public static Map<String,ExternalStorage> esMap = java.util.Collections.synchronizedMap(new LRUMap(2000));
   /**
@@ -108,8 +109,9 @@ public class NameNodeDummy {
    }
   
   public static String getValueFromLRUMap(String key) {
-    Object ob = lru.get(key);
-    return ob == null ? null : ob.toString();
+    //Object ob = lru.get(key);
+    //return ob == null ? null : ob.toString();
+    return lru.get(key);
    }
   
   public static void printLRUMap() {
