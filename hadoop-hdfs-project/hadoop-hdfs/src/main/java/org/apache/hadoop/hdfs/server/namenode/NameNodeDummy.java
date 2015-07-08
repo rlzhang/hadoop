@@ -12,10 +12,13 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import javax.servlet.jsp.JspWriter;
 
+import org.apache.commons.collections.map.FixedSizeMap;
+import org.apache.commons.collections.map.LRUMap;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.FileAlreadyExistsException;
@@ -81,6 +84,42 @@ public class NameNodeDummy {
   // Mainly for client use
   private static Map<String, OverflowTable> staticRoot =
       new ConcurrentHashMap<String, OverflowTable>();
+  
+  /**
+   * For client use, store path => namenode address
+   * Fix size is 1000.
+   */
+  private static  LRUMap lru = new LRUMap(1000);
+  
+  /**
+   * key is path hashcode, value is namenode hostname
+   * @param key
+   * @param value
+   */
+  public static void addToLRUMap(String key, String value) {
+   lru.put(key, value);
+  }
+  
+  public static int lruMapSize() {
+    return lru.size();
+   }
+  
+  public static Object removeFromLRUMap(String key) {
+    return lru.remove(key);
+   }
+  
+  public static String getValueFromLRUMap(String key) {
+    Object ob = lru.get(key);
+    return ob == null ? null : ob.toString();
+   }
+  
+  public static void printLRUMap() {
+    if (lru.size() == 0) return;
+    Iterator<String> keys = lru.keySet().iterator();
+    while(keys.hasNext()) {
+      System.out.println(keys.next());
+    }
+  }
   /**
    * Server side
    */
@@ -1141,20 +1180,26 @@ public class NameNodeDummy {
     return found;
   }
   
+  public synchronized ExternalStorage[] findExternalNN(String path) {
+    return this.findExternalNN(path, ROOT);
+  }
+  public synchronized ExternalStorage[] findExternalNNClient(String path) {
+    return this.findExternalNN(path, staticRoot);
+  }
   /**
    * If path outside current NN?
    * 
    * @param path
    * @return
    */
-  public synchronized ExternalStorage[] findExternalNN(String path) {
+  private synchronized ExternalStorage[] findExternalNN(String path, Map<String, OverflowTable> root) {
     path = this.filterNamespace(path);
     if (DEBUG)
       debug("[NameNodeDummy] findExternalNN: Try to find " + path);
     if (isNullOrBlank(path))
       return null;
     path = path.trim();
-    OverflowTable ot = ROOT.get(OverflowTable.getNaturalRootFromFullPath(path));
+    OverflowTable ot = root.get(OverflowTable.getNaturalRootFromFullPath(path));
     if ("/".equals(path))
       return getExternalStorageFromRoot();
     if (DEBUG)

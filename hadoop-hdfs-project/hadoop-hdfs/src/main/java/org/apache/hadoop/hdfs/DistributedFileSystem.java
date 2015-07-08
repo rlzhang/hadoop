@@ -351,12 +351,16 @@ public class DistributedFileSystem extends FileSystem {
    * @return
    */
   private DFSClientProxy getRightDFSClient(String path) {
-    Object[] obj = nn.getFullPathInServerClient(path, true);
-    if (obj == null) return new DFSClientProxy(dfs, path);
-    OverflowTableNode found = (OverflowTableNode) obj[0];
-    ExternalStorage es = nn.findHostInPath(found);
-    String host = es.getTargetNNServer();
-    String namespace = es.getSourceNNServer();
+    String host = NameNodeDummy.getValueFromLRUMap(path);
+    if (host == null) {
+      Object[] obj = nn.getFullPathInServerClient(path, true);
+      if (obj == null) return new DFSClientProxy(dfs, path);
+      OverflowTableNode found = (OverflowTableNode) obj[0];
+      ExternalStorage es = nn.findHostInPath(found);
+      host = es.getTargetNNServer();
+      //String namespace = es.getSourceNNServer();
+    }
+    
     if (host == null) return new DFSClientProxy(dfs, path);
     return new DFSClientProxy(DFSClient.getDfsclient(host), PRE + INodeServer.PREFIX + namespace + path);
   }
@@ -877,7 +881,7 @@ public class DistributedFileSystem extends FileSystem {
             .debug("=======[DistributedFileSystem]listStatusInternal] Getting namespace from other namenode start...; src = "
                 + src);
       
-      ExternalStorage[] es = nn.findExternalNN(src);
+      ExternalStorage[] es = nn.findExternalNNClient(src);
       /**
       for(int i =0;i<es.length;i++){
       String path = "/" + INodeServer.PREFIX+es[i].getSourceNNServer()+src;

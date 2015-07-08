@@ -74,8 +74,10 @@ public class ClientMerge extends Thread{
 			NameNodeDummy.debug("[ClientMerge] Start threads number is "+es.length);
 		for(int i=0;i<es.length;i++){
 			String path = BASEURL + es[i].getSourceNNServer() + src;
-			NameNodeDummy.info("[ClientMerge] Connect to new name node server "+es[i].getTargetNNServer() + ";path is "+path);
+			NameNodeDummy.info("[ClientMerge] Connect to new name node server "+ es[i].getTargetNNServer() + ";path is "+path);
 			if(!isContain(es[i].getTargetNNServer(),path)) {
+			  //Add to lru cache.
+			  NameNodeDummy.addToLRUMap(src, es[i].getTargetNNServer());
 			  excutor.execute(new ClientMerge(DFSClient.getDfsclient(es[i].getTargetNNServer()),path));
 			  addToSet(es[i].getTargetNNServer(),path);
 			} else {

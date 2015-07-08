@@ -35,7 +35,7 @@ public class BinaryPartition {
    * If name node capacity less than threshhold, will trigger automatically
    * partition.
    */
-  private final static double THRESHOLD = 0.40;
+  private final static double THRESHOLD = 0.50;
 
   /**
    * How much percentage expect to move out, for knapsack problem.
