@@ -550,6 +550,22 @@ public class OverflowTable {
     for (int i = 0; i < es.length; i++) {
 
       String path = es[i].getPath();
+      ExternalStorage cacheEs = NameNodeDummy.esMap.get(path);
+      /**
+       * If path already in binary tree, ignore; otherwise continue insert to binary tree.
+       */
+      if (cacheEs != null){
+        if (!es[i].getTargetNNServer().equalsIgnoreCase(cacheEs.getTargetNNServer())) {
+          //If overflow table be updated in source name node server, update the reference.
+          System.out.println("This barely happen, but seems overflow table has be updated! " + path);
+          cacheEs.setTargetNNServer(es[i].getTargetNNServer());
+        }
+        System.out.println("Overflow table existing, cancel insert: " + path);
+        continue;
+      } else {
+        NameNodeDummy.esMap.put(path, es[i]);
+      }
+      
       if (NameNodeDummy.DEBUG)
         System.out.println("Full path is " + path);
       OverflowTableNode o;

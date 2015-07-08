@@ -12,12 +12,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import javax.servlet.jsp.JspWriter;
 
-import org.apache.commons.collections.map.FixedSizeMap;
 import org.apache.commons.collections.map.LRUMap;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -90,7 +88,8 @@ public class NameNodeDummy {
    * Fix size is 1000.
    */
   private static  LRUMap lru = new LRUMap(1000);
-  
+  // path => ExternalStorage mapping.
+  public static Map<String,ExternalStorage> esMap = java.util.Collections.synchronizedMap(new LRUMap(2000));
   /**
    * key is path hashcode, value is namenode hostname
    * @param key
