@@ -4,7 +4,6 @@ package org.apache.hadoop.hdfs.server.namenode.dummy;
 import java.util.Queue;
 
 import org.apache.hadoop.hdfs.server.namenode.INode;
-import org.apache.hadoop.hdfs.server.namenode.INodeDirectory;
 import org.apache.hadoop.hdfs.server.namenode.dummy.partition.NamenodeTable;
 
 public class ToMove {
@@ -12,7 +11,7 @@ public class ToMove {
   private INode dir;
   private NamenodeTable targetNN;
   private int type = 1; //1, single subtree; 2,hash division
-  private Queue<INodeDirectory> queue = null;
+  private Queue<INode> queue = null;
   private boolean isStartFromLeft = true;
   
   public INode getDir() {
@@ -33,10 +32,10 @@ public class ToMove {
   public void setType(int type) {
     this.type = type;
   }
-  public Queue<INodeDirectory> getQueue() {
+  public Queue<INode> getQueue() {
     return queue;
   }
-  public void setQueue(Queue<INodeDirectory> queue) {
+  public void setQueue(Queue<INode> queue) {
     this.queue = queue;
   }
   public boolean isStartFromLeft() {

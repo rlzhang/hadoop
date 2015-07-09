@@ -277,7 +277,8 @@ public class BinaryPartition {
     tm.setDir(p.inode);
     tm.setType(2);
     tm.setStartFromLeft(p.isStartFromLeft);
-    tm.setQueue(p.queue);
+    //tm.setQueue(p.queue);
+    tm.setQueue(p.allQueue);
     if (p.inode != null)
       return tm;
     // Check if type three matches

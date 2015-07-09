@@ -341,9 +341,9 @@ public class DistributedFileSystem extends FileSystem {
    * @param es
    * @return
    */
- // private OverflowTable addToOverflowTableOld(ExternalStorage[] es) {
-   // return nn.buildOrAddBST(es);
- // }
+  // private OverflowTable addToOverflowTableOld(ExternalStorage[] es) {
+  // return nn.buildOrAddBST(es);
+  // }
   /**
    * This method is used by client, will check if has to switch DFSClient.
    * Added client cache to speed up query.
@@ -355,7 +355,8 @@ public class DistributedFileSystem extends FileSystem {
     //String namespace = "";
     if (es == null) {
       Object[] obj = nn.getFullPathInServerClient(path, true);
-      if (obj == null) return new DFSClientProxy(dfs, path);
+      if (obj == null)
+        return new DFSClientProxy(dfs, path);
       OverflowTableNode found = (OverflowTableNode) obj[0];
       es = nn.findHostInPath(found);
       //host = es.getTargetNNServer();
@@ -363,42 +364,44 @@ public class DistributedFileSystem extends FileSystem {
       //System.out.println("[getRightDFSClient] namespace = " + es.getSourceNNServer());
       //String namespace = es.getSourceNNServer();
     }
-    
-    if (es == null) return new DFSClientProxy(dfs, path);
+
+    if (es == null)
+      return new DFSClientProxy(dfs, path);
     //return new DFSClientProxy(DFSClient.getDfsclient(host), PRE + INodeServer.PREFIX + namespace + path);
-    return new DFSClientProxy(DFSClient.getDfsclient(es.getTargetNNServer()), PRE + INodeServer.PREFIX + es.getSourceNNServer() + path);
+    return new DFSClientProxy(DFSClient.getDfsclient(es.getTargetNNServer()),
+        PRE + INodeServer.PREFIX + es.getSourceNNServer() + path);
   }
-  
-//  private DFSClientProxy getRightDFSClientOld(String path) {
-//    Object[] obj = nn.getFullPathInServer(path, true);
-//    if (obj != null && obj[1] !=null && proxyCaches.containsKey(obj[1].toString())) return new DFSClientProxy(proxyCaches.get(obj[1].toString()),path);
-//    long start = System.currentTimeMillis();
-//    DFSClient newClient =
-//        DFSClient.getDfsclient(nn.getMap().get(namespace + path));
-//    //OverflowTableNode found = nn.getPathInServer(path, true);
-//    OverflowTableNode found = (OverflowTableNode) (obj == null ? null : obj[0]);
-//    if (newClient == null && found != null && found.key.length() > 1)
-//      newClient =
-//          DFSClient.getDfsclient(nn.getMap().get(namespace + found.key));
-//    if (NameNodeDummy.DEBUG)
-//      NameNodeDummy.debug("[DistributedFileSystem] getRightDFSClient: newClient "
-//        + newClient + "; target namenode is " + nn.getMap().get(path)
-//        + "; match node is " + (found == null ? "" : found.key));
-//    //DFSClientProxy proxy = null;
-//    if (newClient == null) {
-//      newClient = dfs; 
-//    } else {
-//      path = namespace + path;
-//      lastDfs = newClient;
-//      
-//    }
-//    DFSClientProxy proxy = new DFSClientProxy(newClient, path);
-//    if (obj != null && obj[1] != null) {
-//      proxyCaches.put(obj[1].toString(), newClient);
-//    }
-//    System.out.println("[DistributedFileSystem] getRightDFSClient took " + (System.currentTimeMillis() - start) + " milliseconds!");
-//    return proxy;
-//  }
+
+  //  private DFSClientProxy getRightDFSClientOld(String path) {
+  //    Object[] obj = nn.getFullPathInServer(path, true);
+  //    if (obj != null && obj[1] !=null && proxyCaches.containsKey(obj[1].toString())) return new DFSClientProxy(proxyCaches.get(obj[1].toString()),path);
+  //    long start = System.currentTimeMillis();
+  //    DFSClient newClient =
+  //        DFSClient.getDfsclient(nn.getMap().get(namespace + path));
+  //    //OverflowTableNode found = nn.getPathInServer(path, true);
+  //    OverflowTableNode found = (OverflowTableNode) (obj == null ? null : obj[0]);
+  //    if (newClient == null && found != null && found.key.length() > 1)
+  //      newClient =
+  //          DFSClient.getDfsclient(nn.getMap().get(namespace + found.key));
+  //    if (NameNodeDummy.DEBUG)
+  //      NameNodeDummy.debug("[DistributedFileSystem] getRightDFSClient: newClient "
+  //        + newClient + "; target namenode is " + nn.getMap().get(path)
+  //        + "; match node is " + (found == null ? "" : found.key));
+  //    //DFSClientProxy proxy = null;
+  //    if (newClient == null) {
+  //      newClient = dfs; 
+  //    } else {
+  //      path = namespace + path;
+  //      lastDfs = newClient;
+  //      
+  //    }
+  //    DFSClientProxy proxy = new DFSClientProxy(newClient, path);
+  //    if (obj != null && obj[1] != null) {
+  //      proxyCaches.put(obj[1].toString(), newClient);
+  //    }
+  //    System.out.println("[DistributedFileSystem] getRightDFSClient took " + (System.currentTimeMillis() - start) + " milliseconds!");
+  //    return proxy;
+  //  }
 
   /**
    * Experimental method
@@ -417,10 +420,10 @@ public class DistributedFileSystem extends FileSystem {
       @Override
       public FSDataInputStream doCall(final Path p) throws IOException,
           UnresolvedLinkException {
-//        if (NameNodeDummy.DEBUG)
-//          NameNodeDummy
-//            .debug("[DistributedFileSystem] try to open ------- namespace="
-//                + namespace + ":" + getPathName(p));
+        //        if (NameNodeDummy.DEBUG)
+        //          NameNodeDummy
+        //            .debug("[DistributedFileSystem] try to open ------- namespace="
+        //                + namespace + ":" + getPathName(p));
         DFSInputStream dfsis = null;
         DFSClientProxy proxy = getRightDFSClient(getPathName(p));
         DFSClient newClient = proxy.client;
@@ -724,8 +727,9 @@ public class DistributedFileSystem extends FileSystem {
     try {
       DFSClientProxy proxy = getRightDFSClient(getPathName(absSrc));
       DFSClient newClient = proxy.client;
-      
-      ExternalStorage es = NameNodeDummy.getValueFromLRUMap(getPathName(absSrc));
+
+      ExternalStorage es =
+          NameNodeDummy.getValueFromLRUMap(getPathName(absSrc));
       String namespace = es == null ? "" : es.getTargetNNServer();
       //if (namespace == null) namespace = "";
       return newClient.rename(namespace + getPathName(absSrc), namespace
@@ -740,7 +744,8 @@ public class DistributedFileSystem extends FileSystem {
             UnresolvedLinkException {
           DFSClientProxy proxy = getRightDFSClient(getPathName(source));
           DFSClient newClient = proxy.client;
-          ExternalStorage es = NameNodeDummy.getValueFromLRUMap(getPathName(source));
+          ExternalStorage es =
+              NameNodeDummy.getValueFromLRUMap(getPathName(source));
           String namespace = es == null ? "" : es.getTargetNNServer();
           return newClient.rename(namespace + getPathName(source), namespace
               + getPathName(p));
@@ -771,9 +776,10 @@ public class DistributedFileSystem extends FileSystem {
 
       DFSClientProxy proxy = getRightDFSClient(getPathName(absSrc));
       DFSClient newClient = proxy.client;
-//      String namespace = NameNodeDummy.getValueFromLRUMap(getPathName(absSrc));
-//      if (namespace == null) namespace = "";
-      ExternalStorage es = NameNodeDummy.getValueFromLRUMap(getPathName(absSrc));
+      //      String namespace = NameNodeDummy.getValueFromLRUMap(getPathName(absSrc));
+      //      if (namespace == null) namespace = "";
+      ExternalStorage es =
+          NameNodeDummy.getValueFromLRUMap(getPathName(absSrc));
       String namespace = (es == null ? "" : es.getTargetNNServer());
       newClient.rename(namespace + getPathName(absSrc), namespace
           + getPathName(absDst), options);
@@ -788,7 +794,8 @@ public class DistributedFileSystem extends FileSystem {
           DFSClientProxy proxy = getRightDFSClient(getPathName(absSrc));
           DFSClient newClient = proxy.client;
           //String namespace = NameNodeDummy.getValueFromLRUMap(getPathName(absSrc));
-          ExternalStorage es = NameNodeDummy.getValueFromLRUMap(getPathName(absSrc));
+          ExternalStorage es =
+              NameNodeDummy.getValueFromLRUMap(getPathName(absSrc));
           String namespace = (es == null ? "" : es.getTargetNNServer());
           //if (namespace == null) namespace = "";
           newClient.rename(namespace + getPathName(source), namespace
@@ -879,7 +886,8 @@ public class DistributedFileSystem extends FileSystem {
    * @param thisListing
    * @param src
    */
-  private DirectoryListing updateStatusInternal(DirectoryListing thisListing, String src) {
+  private DirectoryListing updateStatusInternal(DirectoryListing thisListing,
+      String src) {
     if (thisListing != null) {
       HdfsFileStatus[] partialListing = thisListing.getPartialListing();
       for (int i = 0; i < partialListing.length; i++) {
@@ -892,13 +900,13 @@ public class DistributedFileSystem extends FileSystem {
         }
       }
     }
-    
+
     if (!nn.isClientMapEmpty()) {
       if (NameNodeDummy.DEBUG)
         NameNodeDummy
             .debug("=======[DistributedFileSystem]listStatusInternal] Getting namespace from other namenode start...; src = "
                 + src);
-      
+
       ExternalStorage[] es = nn.findExternalNNClient(src);
       /**
       for(int i =0;i<es.length;i++){
@@ -922,10 +930,10 @@ public class DistributedFileSystem extends FileSystem {
               + thisListing);
     return thisListing;
   }
-  
+
   private FileStatus[] listStatusInternal(Path p) throws IOException {
     String src = getPathName(p);
-    
+
     DirectoryListing thisListing =
         dfs.listPaths(src, HdfsFileStatus.EMPTY_NAME);
     if (NameNodeDummy.useDistributedNN) {
@@ -1361,22 +1369,33 @@ public class DistributedFileSystem extends FileSystem {
 
   // Cache the first visited namenode of all overflow table data.
   private static boolean isCached = false;
-  private void getOverflowTable(DFSClient dfs, NameNodeDummy nn) throws IOException {
+
+  private synchronized static void getOverflowTable(String path, DFSClient dfs, NameNodeDummy nn)
+      throws IOException {
     if (!isCached) {
       //it throw java.lang.IllegalStateException, have to fix.
-     // HdfsFileStatus hfs = dfs.getOverflowTable("/");
-      HdfsFileStatus hfs = dfs.getFileInfo("/");
-      NameNodeDummy.debug("1) [DistributedFileSystem] getOverflowTable is " + hfs);
-      NameNodeDummy.debug("1.1) [DistributedFileSystem] " + (hfs != null && hfs.getEs() != null));
+      // HdfsFileStatus hfs = dfs.getOverflowTable("/");
+      String root = OverflowTable.getNaturalRootFromFullPath(path);
+      HdfsFileStatus hfs = dfs.getFileInfo(root);
+      NameNodeDummy.debug("1) [DistributedFileSystem] getOverflowTable is "
+          + hfs);
+      NameNodeDummy.debug("1.1) [DistributedFileSystem] "
+          + (hfs != null && hfs.getEs() != null));
       if (hfs != null && hfs.getEs() != null) {
-        NameNodeDummy.debug("2) [DistributedFileSystem] getOverflowTable is " + (hfs.getEs() == null ? "" : hfs.getEs().length ));
-        nn.buildOrAddBSTAllClient(hfs.getEs());
-        System.out.println("[buildOrAddBST] Overflow table has records " + hfs.getEs().length);
-        
+        NameNodeDummy.debug("2) [DistributedFileSystem] getOverflowTable is "
+            + (hfs.getEs() == null ? "" : hfs.getEs().length));
+        if (PRE.equals(root))
+          nn.buildOrAddBSTAllClient(hfs.getEs());
+        else
+          nn.buildOrAddBSTClient(hfs.getEs());
+        System.out.println("[buildOrAddBST] Overflow table has records "
+            + hfs.getEs().length);
+
       }
       isCached = true;
     }
   }
+
   /**
    * Returns the stat information about the file.
    * @throws FileNotFoundException if the file does not exist.
@@ -1392,119 +1411,122 @@ public class DistributedFileSystem extends FileSystem {
         long start = System.currentTimeMillis();
         String path = getPathName(p);
         //Build in memory overflow table.
-        getOverflowTable(dfs, nn);
+        getOverflowTable(path, dfs, nn);
         DFSClientProxy dfs = getRightDFSClient(path);
         path = dfs.path;
         HdfsFileStatus fi = dfs.client.getFileInfo(path);
         //p = new Path(path);
-//        if (NameNodeDummy.useDistributedNN) {
-//          if (NameNodeDummy.DEBUG) {
-//            NameNodeDummy
-//                .debug("[DistributedFileSystem]:getFileStatus:doCall:Check if path in other namenode "
-//                    + p);
-//            NameNodeDummy
-//                .debug("[DistributedFileSystem]:getFileStatus:doCall: HdfsFileStatus:localname = "
-//                    + (fi == null ? null : fi.getLocalName())
-//                    + "; HdfsFileStatus get ExternalStorage = "
-//                    + (fi == null ? "" : fi.getEs().length));
-//          }
-//
-//          if (fi != null && !NameNodeDummy.isNullOrBlank(fi.getEs())) {
-//            //OverflowTable ot = OverflowTable.buildBSTFromScratch(fi.getEs());
-//            nn.buildOrAddBSTClient(fi.getEs());
-//           // OverflowTableNode f = ot.getFirstNotNullNode(ot.getRoot());
-////            if (NameNodeDummy.DEBUG)
-////              NameNodeDummy
-////                  .debug("[DistributedFileSystem]getFileStatus:doCall: Get metadata from different NN:"
-////                      + f.getValue().getTargetNNServer() + ":path=" + path);
-//            //es = removeDuplication(fi.getEs());
-//            //String source = f.getValue().getSourceNNServer();
-//
-//            //namespace = "/" + INodeServer.PREFIX + source;
-//            //String fullPath = namespace + getPathName(p);
-//            //if (NameNodeDummy.DEBUG)
-//             // NameNodeDummy.debug("[DistributedFileSystem]getFileStatus======:"
-//              //    + fullPath);
-//            DFSClient newOne = DFSClient.getDfsclient(fi.getEs()[0].getTargetNNServer());
-//            if (newOne == null)
-//              System.err
-//                  .println("You have wrong configuration in core-site.xml, make sure to enable hadoop federation viewfs!");
-//            if (NameNodeDummy.DEBUG)
-//              NameNodeDummy
-//                  .debug("[DistributedFileSystem] getFileStatus: Get dfs client:"
-//                      + newOne);
-//            //overflowTableMap.put(path, ot);
-//            // Temporary store path to target namenode mappoing. Don't have to do this now
-////            if (getPathName(p) != null && getPathName(p).length() > 0) {
-////              NameNodeDummy
-////                  .debug("[DistributedFileSystem] getFileStatus: Hash map key: "
-////                      + fullPath
-////                      + "; value: "
-////                      + f.getValue().getTargetNNServer());
-////              nn.getMap().put(fullPath, f.getValue().getTargetNNServer());
-////              //nn.getMap().put(namespace, f.getValue().getTargetNNServer());
-////            }
-//            
-//            
-//            
-//            
-//            if (fi.getLen() == NameNodeDummy.EMPTY_HdfsFileStatus) {
-//              String newP = PRE + INodeServer.PREFIX + fi.getEs()[0].getSourceNNServer() + path;
-//              HdfsFileStatus newFi = newOne.getFileInfo(newP);
-//              if (NameNodeDummy.DEBUG)
-//                NameNodeDummy
-//                    .debug("[DistributedFileSystem]getFileStatus======:fi =="
-//                        + fi + "; newFi " + newFi + "; newFi.getEs() "
-//                        + (newFi == null ? null : newFi.getEs().length) + "; path " + newP);
-//
-//              newP = null;
-//              if (newFi != null) {
-//                // Cache the path => 
-//                NameNodeDummy.addToLRUMap(path, fi.getEs()[0]);
-//                /**
-//                int len = newFi.getEs() != null ? newFi.getEs().length : 0;
-//                
-//                for (int i = 0; i < len; i++) {
-//                  String esPath = newFi.getEs()[i].getPath();
-//                  NameNodeDummy
-//                      .debug("[DistributedFileSystem]getFileStatus:: External storage path = "
-//                          + esPath);
-//                }
-//                **/
-//                
-//                fi = newFi;
-//              }
-//            }
-//            
-//          }
-//          // else {
-//          /**
-//          HdfsFileStatus of = dfs.getOverflowTable(path);
-//          //OverflowTable ot = nn.buildOrAddBST(of.getEs());
-//          // Check if path in other namenode
-//          //if (namespace == null) namespace = "/" + INodeServer.PREFIX + nn.getThefirstSourceNN(path);
-//          if (of != null) {
-//          ExternalStorage[] ess = of.getEs();
-//          ExternalStorage es = null;
-//          if (ess != null)
-//           es = nn.findBestMatchInOverflowtable(ess, path);
-//          if (es != null) {
-//          	NameNodeDummy.log("[DistributedFileSystem]getFileStatus:: Found path in other NN:" + es.getTargetNNServer() + ";path is " + path +";");
-//          	fi = new HdfsFileStatus(new ExternalStorage[]{es},namespace + path);
-//          }
-//          }
-//          **/
-//
-//          //  }
-//
-//        }
+        //        if (NameNodeDummy.useDistributedNN) {
+        //          if (NameNodeDummy.DEBUG) {
+        //            NameNodeDummy
+        //                .debug("[DistributedFileSystem]:getFileStatus:doCall:Check if path in other namenode "
+        //                    + p);
+        //            NameNodeDummy
+        //                .debug("[DistributedFileSystem]:getFileStatus:doCall: HdfsFileStatus:localname = "
+        //                    + (fi == null ? null : fi.getLocalName())
+        //                    + "; HdfsFileStatus get ExternalStorage = "
+        //                    + (fi == null ? "" : fi.getEs().length));
+        //          }
+        //
+        //          if (fi != null && !NameNodeDummy.isNullOrBlank(fi.getEs())) {
+        //            //OverflowTable ot = OverflowTable.buildBSTFromScratch(fi.getEs());
+        //            nn.buildOrAddBSTClient(fi.getEs());
+        //           // OverflowTableNode f = ot.getFirstNotNullNode(ot.getRoot());
+        ////            if (NameNodeDummy.DEBUG)
+        ////              NameNodeDummy
+        ////                  .debug("[DistributedFileSystem]getFileStatus:doCall: Get metadata from different NN:"
+        ////                      + f.getValue().getTargetNNServer() + ":path=" + path);
+        //            //es = removeDuplication(fi.getEs());
+        //            //String source = f.getValue().getSourceNNServer();
+        //
+        //            //namespace = "/" + INodeServer.PREFIX + source;
+        //            //String fullPath = namespace + getPathName(p);
+        //            //if (NameNodeDummy.DEBUG)
+        //             // NameNodeDummy.debug("[DistributedFileSystem]getFileStatus======:"
+        //              //    + fullPath);
+        //            DFSClient newOne = DFSClient.getDfsclient(fi.getEs()[0].getTargetNNServer());
+        //            if (newOne == null)
+        //              System.err
+        //                  .println("You have wrong configuration in core-site.xml, make sure to enable hadoop federation viewfs!");
+        //            if (NameNodeDummy.DEBUG)
+        //              NameNodeDummy
+        //                  .debug("[DistributedFileSystem] getFileStatus: Get dfs client:"
+        //                      + newOne);
+        //            //overflowTableMap.put(path, ot);
+        //            // Temporary store path to target namenode mappoing. Don't have to do this now
+        ////            if (getPathName(p) != null && getPathName(p).length() > 0) {
+        ////              NameNodeDummy
+        ////                  .debug("[DistributedFileSystem] getFileStatus: Hash map key: "
+        ////                      + fullPath
+        ////                      + "; value: "
+        ////                      + f.getValue().getTargetNNServer());
+        ////              nn.getMap().put(fullPath, f.getValue().getTargetNNServer());
+        ////              //nn.getMap().put(namespace, f.getValue().getTargetNNServer());
+        ////            }
+        //            
+        //            
+        //            
+        //            
+        //            if (fi.getLen() == NameNodeDummy.EMPTY_HdfsFileStatus) {
+        //              String newP = PRE + INodeServer.PREFIX + fi.getEs()[0].getSourceNNServer() + path;
+        //              HdfsFileStatus newFi = newOne.getFileInfo(newP);
+        //              if (NameNodeDummy.DEBUG)
+        //                NameNodeDummy
+        //                    .debug("[DistributedFileSystem]getFileStatus======:fi =="
+        //                        + fi + "; newFi " + newFi + "; newFi.getEs() "
+        //                        + (newFi == null ? null : newFi.getEs().length) + "; path " + newP);
+        //
+        //              newP = null;
+        //              if (newFi != null) {
+        //                // Cache the path => 
+        //                NameNodeDummy.addToLRUMap(path, fi.getEs()[0]);
+        //                /**
+        //                int len = newFi.getEs() != null ? newFi.getEs().length : 0;
+        //                
+        //                for (int i = 0; i < len; i++) {
+        //                  String esPath = newFi.getEs()[i].getPath();
+        //                  NameNodeDummy
+        //                      .debug("[DistributedFileSystem]getFileStatus:: External storage path = "
+        //                          + esPath);
+        //                }
+        //                **/
+        //                
+        //                fi = newFi;
+        //              }
+        //            }
+        //            
+        //          }
+        //          // else {
+        //          /**
+        //          HdfsFileStatus of = dfs.getOverflowTable(path);
+        //          //OverflowTable ot = nn.buildOrAddBST(of.getEs());
+        //          // Check if path in other namenode
+        //          //if (namespace == null) namespace = "/" + INodeServer.PREFIX + nn.getThefirstSourceNN(path);
+        //          if (of != null) {
+        //          ExternalStorage[] ess = of.getEs();
+        //          ExternalStorage es = null;
+        //          if (ess != null)
+        //           es = nn.findBestMatchInOverflowtable(ess, path);
+        //          if (es != null) {
+        //          	NameNodeDummy.log("[DistributedFileSystem]getFileStatus:: Found path in other NN:" + es.getTargetNNServer() + ";path is " + path +";");
+        //          	fi = new HdfsFileStatus(new ExternalStorage[]{es},namespace + path);
+        //          }
+        //          }
+        //          **/
+        //
+        //          //  }
+        //
+        //        }
 
-        if (NameNodeDummy.DEBUG)  
-          NameNodeDummy.debug("[DistributedFileSystem]getFileStatus: fi len is " + (fi == null ? "" : fi.getLen()));
+        if (NameNodeDummy.DEBUG)
+          NameNodeDummy
+              .debug("[DistributedFileSystem]getFileStatus: fi len is "
+                  + (fi == null ? "" : fi.getLen()));
         if (fi != null && fi.getLen() == NameNodeDummy.EMPTY_HdfsFileStatus)
           fi = null;
 
-        NameNodeDummy.debug("[DistributedFileSystem]getFileStatus spend " + (System.currentTimeMillis() - start) + " milliseconds!");
+        NameNodeDummy.debug("[DistributedFileSystem]getFileStatus spend "
+            + (System.currentTimeMillis() - start) + " milliseconds!");
         if (fi != null) {
           NameNodeDummy
               .debug("[DistributedFileSystem]getFileStatus======:fi.getFullPath "
@@ -1512,7 +1534,8 @@ public class DistributedFileSystem extends FileSystem {
           return fi.makeQualified(getUri(), p);
         } else {
           NameNodeDummy
-          .debug("[DistributedFileSystem]getFileStatus: File does not exist: " + p);
+              .debug("[DistributedFileSystem]getFileStatus: File does not exist: "
+                  + p);
           throw new FileNotFoundException("File does not exist: " + p);
         }
       }

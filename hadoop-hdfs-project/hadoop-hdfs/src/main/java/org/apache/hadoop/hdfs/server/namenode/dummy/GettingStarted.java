@@ -11,6 +11,7 @@ import java.util.Queue;
 import java.util.Timer;
 import java.util.TimerTask;
 
+import org.apache.hadoop.hdfs.server.namenode.INode;
 import org.apache.hadoop.hdfs.server.namenode.INodeDirectory;
 import org.apache.hadoop.hdfs.server.namenode.NameNode;
 import org.apache.hadoop.hdfs.server.namenode.NameNodeDummy;
@@ -191,10 +192,11 @@ class ReportAndMoveNSTask extends TimerTask {
             + tm.getDir().getFullPathName());
       }
     } else if (tm.getType() == 2) {
-      Queue<INodeDirectory> queue = tm.getQueue();
-      Iterator<INodeDirectory> ite = queue.iterator();
+      //Queue<INodeDirectory> queue = tm.getQueue();
+      Queue<INode> queue = tm.getQueue();
+      Iterator<INode> ite = queue.iterator();
       while (ite.hasNext()) {
-        INodeDirectory dir = ite.next();
+        INode dir = ite.next();
         try {
           isSuc = NameNodeDummy.getNameNodeDummyInstance().moveNSAutomatically(
               dir.getFullPathName(), tm.getTargetNN().getNamenodeServer());
