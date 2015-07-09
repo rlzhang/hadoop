@@ -1572,8 +1572,8 @@ public class FSDirectory implements Closeable {
           HdfsFileStatus hfs = (i == null ? null : createFileStatus(HdfsFileStatus.EMPTY_NAME, i,
           policyId, inodesInPath.getPathSnapshotId(), isRawPath,
           inodesInPath));
-          if (NameNodeDummy.useDistributedNN){
-        	  hfs = this.setOverflowTable(i, srcs, hfs);  
+          if (NameNodeDummy.useDistributedNN && "/".equals(srcs)){// only accept first query.
+        	  hfs = this.setOverflowTable(i, srcs, hfs);
           }
        return hfs;
     } finally {
@@ -1589,12 +1589,20 @@ public class FSDirectory implements Closeable {
    * @return
    */
   private HdfsFileStatus setOverflowTable(INode i, String srcs, HdfsFileStatus hfs) {
-    ExternalStorage es = NameNodeDummy.getNameNodeDummyInstance().findHostInPath(NameNodeDummy.getNameNodeDummyInstance().findNode(srcs));
+    ExternalStorage[] es = NameNodeDummy.getNameNodeDummyInstance().getRootExternalStorages(srcs);
+    //ExternalStorage[] es = NameNodeDummy.getNameNodeDummyInstance().findExternalNN(srcs);
+    
+    if (es == null){
+      es = new ExternalStorage[1];
+      es[0] = NameNodeDummy.getNameNodeDummyInstance().findHostInPath(NameNodeDummy.getNameNodeDummyInstance().findNode(srcs));
+    }
+      
+    //ExternalStorage[] ess = NameNodeDummy.getNameNodeDummyInstance().findExternalNN(srcs);
     if (es != null) {
       if (hfs == null) {
-        hfs = new HdfsFileStatus(new ExternalStorage[]{es}, srcs);
+        hfs = new HdfsFileStatus(es, srcs);
       } else
-        hfs.setEs(new ExternalStorage[]{es});
+        hfs.setEs(es);
     }
     return hfs;
   }

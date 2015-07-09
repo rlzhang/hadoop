@@ -41,7 +41,7 @@ public class SplitTree {
 
     Iterator<INode> ite = roList.iterator();
     //for (int i = 0; i < roList.size(); i++) {
-    while(ite.hasNext()) {
+    while (ite.hasNext()) {
       splitToSmallTree(ite.next(), myID);
     }
 
@@ -75,12 +75,13 @@ public class SplitTree {
     boolean ifSuccess = false;
     int myID = this.increaseIndex();
     if (NameNodeDummy.DEBUG)
-    System.out.println("localname:" + inode.getLocalName());
+      System.out.println("localname:" + inode.getLocalName());
     list.add(new MapRequest(myID, parent, inode));
     long quota = inode.computeQuotaUsage().get(Quota.NAMESPACE);
     int splitSize = (int) ((quota / size) + 1);
     if (NameNodeDummy.DEBUG)
-    System.out.println("Split to " + splitSize + "; metadata size is " + quota);
+      System.out.println("Split to " + splitSize + "; metadata size is "
+          + quota);
     if (splitSize > 1) {
       // Have handled in Kryo
       //inode.setParent(null);
@@ -130,7 +131,7 @@ public class SplitTree {
           + sub.getInode().getLocalName());
     }
   }
-**/
+  **/
   /**
    * Merge back the divided sub-tree on the target namenode.
    * @param map
@@ -149,14 +150,14 @@ public class SplitTree {
       if (id.intValue() != 0)
         map.get(sub.getParentID()).getInode().asDirectory()
             .addChild(sub.getInode());
-      if(NameNodeDummy.DEBUG)
-      System.out.println("[mergeListToINode]Merge file "
-          + sub.getInode().getLocalName());
       if (NameNodeDummy.DEBUG)
-      if (sub.getInode().isFile()) {
-        System.out.println("File name is "
-            + sub.getInode().asFile().getFullPathName());
-      }
+        System.out.println("[mergeListToINode]Merge file "
+            + sub.getInode().getLocalName());
+      if (NameNodeDummy.DEBUG)
+        if (sub.getInode().isFile()) {
+          System.out.println("File name is "
+              + sub.getInode().asFile().getFullPathName());
+        }
     }
     return root;
   }

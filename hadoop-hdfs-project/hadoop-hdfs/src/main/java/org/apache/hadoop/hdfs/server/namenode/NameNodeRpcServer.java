@@ -841,6 +841,7 @@ class NameNodeRpcServer implements NamenodeProtocols {
 
   @Override
   public HdfsFileStatus getOverflowTable(String src) {
+    metrics.incrFileInfoOps();
     return NameNodeDummy.getNameNodeDummyInstance().findOverflowTableByPath(src);
   }
   

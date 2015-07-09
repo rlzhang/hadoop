@@ -7,11 +7,13 @@ import java.io.StringWriter;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import javax.servlet.jsp.JspWriter;
@@ -66,6 +68,8 @@ public class NameNodeDummy {
   // For block report during heartbeat period. Namenode notifys all datanodes
   // add new block pool ids.
   private Map<String, List<Long>> blockIds;
+  //indicate HdfsFileStatus is empty.
+  public static int EMPTY_HdfsFileStatus = -111;
   private String originalBpId;
   public static boolean useDistributedNN = true;
   public static boolean TEST = false;
@@ -87,36 +91,36 @@ public class NameNodeDummy {
    * For client use, store path => namenode address
    * Fix size is 1000.
    */
-  private static Map<String,String> lru = java.util.Collections.synchronizedMap(new LRUMap(10));
+  private static Map<String,ExternalStorage> allPathCache = java.util.Collections.synchronizedMap(new LRUMap(1000));
   //private static LRUMap lru = new LRUMap(10);
-  // path => ExternalStorage mapping.
-  public static Map<String,ExternalStorage> esMap = java.util.Collections.synchronizedMap(new LRUMap(2000));
+  // path => ExternalStorage mapping. this path is exactly same as in ExternalStorage.
+  public static Map<String,ExternalStorage> overflowPathCache = java.util.Collections.synchronizedMap(new LRUMap(2000));
   /**
    * key is path hashcode, value is namenode hostname
    * @param key
    * @param value
    */
-  public static void addToLRUMap(String key, String value) {
-   lru.put(key, value);
+  public static void addToLRUMap(String key, ExternalStorage value) {
+    allPathCache.put(key, value);
   }
   
   public static int lruMapSize() {
-    return lru.size();
+    return allPathCache.size();
    }
   
   public static Object removeFromLRUMap(String key) {
-    return lru.remove(key);
+    return allPathCache.remove(key);
    }
   
-  public static String getValueFromLRUMap(String key) {
+  public static ExternalStorage getValueFromLRUMap(String key) {
     //Object ob = lru.get(key);
     //return ob == null ? null : ob.toString();
-    return lru.get(key);
+    return allPathCache.get(key);
    }
   
   public static void printLRUMap() {
-    if (lru.size() == 0) return;
-    Iterator<String> keys = lru.keySet().iterator();
+    if (allPathCache.size() == 0) return;
+    Iterator<String> keys = allPathCache.keySet().iterator();
     while(keys.hasNext()) {
       System.out.println(keys.next());
     }
@@ -134,9 +138,10 @@ public class NameNodeDummy {
     return staticRoot.size() == 0 ? true : false;
   }
 
-  private synchronized ExternalStorage[] getExternalStorageFromRoot() {
+
+  private synchronized ExternalStorage[] getExternalStorageFromRoot(Map<String, OverflowTable> root) {
     List<ExternalStorage> temp = new ArrayList<ExternalStorage>();
-    for (OverflowTable ot : ROOT.values()) {
+    for (OverflowTable ot : root.values()) {
       // log("[nameNodeDummy] getExternalStorageFromRoot: In memory map key "+
       // ROOT.);
       temp.addAll(Arrays.asList(ot.getAllChildren(ot.getRoot())));
@@ -905,6 +910,12 @@ public class NameNodeDummy {
     return this.buildOrAddBST(es, ROOT);
   }
   
+  public void buildOrAddBSTAllClient(ExternalStorage[] es) {
+    if (es == null) return;
+    for(int i = 0; i < es.length; i++){
+      buildOrAddBSTClient(new ExternalStorage[]{es[i]});
+    }
+  }
   public OverflowTable buildOrAddBSTClient(ExternalStorage[] es) {
     return this.buildOrAddBST(es, staticRoot);
   }
@@ -929,8 +940,8 @@ public class NameNodeDummy {
       root.put(key, OverflowTable.buildOrAddBST(es, null));
     else
       root.put(key, OverflowTable.buildOrAddBST(es, root.get(key)));
-    System.out.println("[buildOrAddBST] Take " + (System.currentTimeMillis() - start) + " milliseconds.");
-    System.out.println("[buildOrAddBST] Overflow table depth is " + OverflowTable.treeDepth(root.get(key).getRoot()) + " in root dir " + key);
+    //System.out.println("[buildOrAddBST] Take " + (System.currentTimeMillis() - start) + " milliseconds.");
+    //System.out.println("[buildOrAddBST] Overflow table depth is " + OverflowTable.treeDepth(root.get(key).getRoot()) + " in root dir " + key);
     return root.get(key);
   }
 
@@ -1073,6 +1084,30 @@ public class NameNodeDummy {
     if (es != null) return es;
     return findHostInPath(found.parent);
   }
+  
+  public ExternalStorage[] getRootExternalStorages(String path) {
+    if (!path.equals("/")) return null;
+    if (ROOT.size() == 0) {
+      return null;
+    }
+    List<ExternalStorage> list = new ArrayList<ExternalStorage>();
+    Collection<OverflowTable> collection = ROOT.values();
+    for (OverflowTable ot : collection) {
+      if (ot.getRoot().getValue() != null) {
+        list.add(ot.getRoot().getValue());
+      }
+    }
+    return (list.size() == 0 ? null : listToArray(list));
+  }
+  
+  private ExternalStorage[] listToArray(List<ExternalStorage> list) {
+    if (list.size() == 0) return null;
+    ExternalStorage[] es = new ExternalStorage[list.size()];
+    for(int i = 0; i < es.length; i++) {
+      es[i] = list.get(i);
+    }
+    return es;
+  }
   public ExternalStorage findExternalNN_OLD(String key, boolean ifRecursive) {
 
     if (key == null || key.length() == 0)
@@ -1202,7 +1237,7 @@ public class NameNodeDummy {
     path = path.trim();
     OverflowTable ot = root.get(OverflowTable.getNaturalRootFromFullPath(path));
     if ("/".equals(path))
-      return getExternalStorageFromRoot();
+      return getExternalStorageFromRoot(root);
     if (DEBUG)
       debug("[NameNodeDummy] findExternalNN: Cannot find "
           + OverflowTable.getNaturalRootFromFullPath(path));

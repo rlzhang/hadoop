@@ -1475,4 +1475,20 @@ public class ClientNamenodeProtocolServerSideTranslatorPB implements
       throw new ServiceException(e);
     }
   }
+
+  @Override
+  public GetFileInfoResponseProto getOverflowTable(RpcController controller,
+      GetFileInfoRequestProto req) throws ServiceException {
+    try {
+      HdfsFileStatus result = server.getOverflowTable(req.getSrc());
+ 
+      if (result != null) {
+        return GetFileInfoResponseProto.newBuilder().setFs(
+            PBHelper.convert(result)).build();
+      }
+      return VOID_GETFILEINFO_RESPONSE;      
+    } catch (Exception e) {
+      throw new ServiceException(e);
+    }
+  }
 }

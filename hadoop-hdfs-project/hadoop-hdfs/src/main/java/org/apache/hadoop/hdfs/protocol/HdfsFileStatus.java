@@ -102,7 +102,7 @@ public class HdfsFileStatus {
   public HdfsFileStatus(ExternalStorage es[],String path){
 	  this.setEs(es);
 	  this.ifTryNext = true;
-	  this.length = -1;
+	  this.length = -111;
 	    this.isdir = false;
 	    this.block_replication = -1;
 	    this.blocksize = -1;

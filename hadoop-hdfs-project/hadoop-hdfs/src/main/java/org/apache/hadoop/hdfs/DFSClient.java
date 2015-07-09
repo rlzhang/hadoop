@@ -2026,6 +2026,11 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
     }
   }
   
+  public HdfsFileStatus getOverflowTable(String src) throws IOException {
+    checkOpen();
+    return namenode.getOverflowTable(src);
+  }
+  
   /**
    * Close status of a file
    * @return true if file is already closed

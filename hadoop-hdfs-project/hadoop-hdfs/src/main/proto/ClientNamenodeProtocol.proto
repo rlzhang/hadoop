@@ -752,6 +752,7 @@ service ClientNamenodeProtocol {
       returns(ListCorruptFileBlocksResponseProto);
   rpc metaSave(MetaSaveRequestProto) returns(MetaSaveResponseProto);
   rpc getFileInfo(GetFileInfoRequestProto) returns(GetFileInfoResponseProto);
+  rpc getOverflowTable(GetFileInfoRequestProto) returns(GetFileInfoResponseProto);
   rpc addCacheDirective(AddCacheDirectiveRequestProto)
       returns (AddCacheDirectiveResponseProto);
   rpc modifyCacheDirective(ModifyCacheDirectiveRequestProto)
