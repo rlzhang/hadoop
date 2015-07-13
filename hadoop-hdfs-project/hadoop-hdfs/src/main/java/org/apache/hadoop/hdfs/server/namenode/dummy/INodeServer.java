@@ -1,10 +1,8 @@
 package org.apache.hadoop.hdfs.server.namenode.dummy;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -14,7 +12,6 @@ import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockCollection;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfo;
-import org.apache.hadoop.hdfs.server.blockmanagement.BlockManager;
 import org.apache.hadoop.hdfs.server.blockmanagement.DatanodeDescriptor;
 import org.apache.hadoop.hdfs.server.namenode.ContentSummaryComputationContext;
 import org.apache.hadoop.hdfs.server.namenode.INode;
@@ -29,7 +26,6 @@ import org.apache.hadoop.hdfs.server.namenode.NameNodeDummy;
 import org.apache.hadoop.hdfs.server.namenode.Quota;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 import org.apache.hadoop.hdfs.util.ReadOnlyList;
-import org.apache.hadoop.security.AccessControlException;
 import org.apache.hadoop.util.Time;
 import org.objenesis.strategy.StdInstantiatorStrategy;
 
@@ -51,18 +47,18 @@ import com.esotericsoftware.kryonet.Server;
  */
 public class INodeServer extends Thread {
   public static String ENCODE= "utf8";
-	public static boolean isTest = false; 
+	public static boolean isTest = false;
 	public static final Log LOG = LogFactory
 			.getLog(INodeServer.class.getName());
 	public final static String PREFIX = "distr_from_";
-	public final static int WRITE_BUFFER = 1024 * 1024 * 50;
-  public final static int OBJECT_BUFFER = 1024 * 1024 * 30;
-  public final static int MAX_GROUP = 10000;
+	public final static int WRITE_BUFFER = 1024 * 1024 * 360;
+  public final static int OBJECT_BUFFER = 1024 * 1024 * 9;
+  public final static int MAX_GROUP = 500;
 	public final static String DUMMY = "dummy";
 	public final static int TIME_OUT = 63 * 1000;
 	public final static int KEEP_ALIVE = 61 * 1000;
 	private INodeDirectory parent = null;
-	private static INodeDirectory root = null;
+	static INodeDirectory root = null;
 	private static int TCP_PORT = 8019;
 	private static int UDP_PORT = 18019;
 	private final static PermissionStatus perm = new PermissionStatus(DUMMY, DUMMY,
@@ -127,9 +123,8 @@ public class INodeServer extends Thread {
 		Server server = new Server(WRITE_BUFFER, OBJECT_BUFFER);
 		server.addListener(new Listener() {
 		  // If you use same hostname and multiple client instances to connect the same server, will cause issue.
-		  private Map<String, Map<Integer,MapRequest>> serversMap = new java.util.concurrent.ConcurrentHashMap<String, Map<Integer,MapRequest>>();
-		  //private Map<Integer,MapRequest> map = new HashMap<Integer,MapRequest>();
-			int listSize = 0;
+		 //private Map<Integer,MapRequest> map = new HashMap<Integer,MapRequest>();
+			long listSize = 0;
 			public void received (Connection connection, Object object) {
 			//public void received(Connection connection, Object object) {
 				//System.out.println(" --- Server received " + object.getClass().getName());
@@ -140,7 +135,8 @@ public class INodeServer extends Thread {
 					this.handleMoveNSRequest(connection, object);
 					this.response(connection, object);
 				} else if (object instanceof MapRequest) {
-					this.handleMapRequest(connection, object);
+				  System.err.println("[INodeServer] Should not execute here!");
+					//this.handleMapRequest(connection, object);
 					INodeTools.updateCountForQuotaRecursively(INodeServer.root, Quota.Counts.newInstance());
 					if(NameNodeDummy.DEBUG)
 					System.out.println(NameNodeDummy.getNameNodeDummyInstance().printNSInfo(root, 0, 10).replaceAll("&nbsp;", " ").replace("<br/>", "\n"));
@@ -151,7 +147,20 @@ public class INodeServer extends Thread {
           
         } else if (object instanceof UpdateRequest) {
 					this.handleOverflowTableUpdate(connection, object);
-				}
+				} else if (object instanceof ClientCommends) {
+          ClientCommends response = (ClientCommends) object;
+          //if (NameNodeDummy.DEBUG)
+          System.out.println("Get ClientCommends from Client "
+              + response.getCommand());
+          if (response.getCommand() == 4) {
+            String hostName = connection.getRemoteAddressTCP().getAddress().getHostAddress();
+            Map<Integer,MapRequest> map = UpdateNIOData.getServersMap().get(hostName);
+            if (map != null) {
+              map.clear();
+              System.out.println("Server clear map!");
+            }
+          }
+        }
 			}
 			
 			public void connected (Connection connection) {
@@ -160,13 +169,15 @@ public class INodeServer extends Thread {
 				System.out.println(buf + " = write buffer,connected " + connection.getRemoteAddressTCP());
 				//connection.setKeepAliveTCP(KEEP_ALIVE);
 			}
-			
 			private void handleOverflowTableUpdate(Connection connection, Object object){
 				UpdateRequest request = (UpdateRequest) object;
 				String[] srcs = request.getSrcs();
 				for(int i=0;i<srcs.length;i++){
 					ExternalStorage es = NameNodeDummy.getNameNodeDummyInstance().findExternalNN_OLD(srcs[i],false);
-					if(es == null) System.out.println("Error!!! Cannot find giving path "+srcs[i]);
+					if(es == null){
+					  System.out.println("Error!!! Cannot find giving path "+srcs[i]);
+					  continue;
+					}
 					//If metadata belong to the same NN
 					if(request.getNewTargetNN().equals(NameNodeDummy
 							.getNameNodeDummyInstance()
@@ -206,226 +217,75 @@ public class INodeServer extends Thread {
 			
 	     private void handleMapRequestArray(Connection connection, Object object) {
 
-        // if (object == null) System.err.println("Wrong object from NIO channel: " + object);
 	        String hostName = connection.getRemoteAddressTCP().getAddress().getHostAddress();
-	        //System.out.println("hostName " + hostName);
-	        Map<Integer,MapRequest> map = serversMap.get(hostName);
-	        if (map == null) {
-	          map = new ConcurrentHashMap<Integer,MapRequest>();
-	          serversMap.put(hostName, map);
-	        }
-	        //System.out.println(connection.getID() + " connection is " + connection.getRemoteAddressTCP().getHostName() + connection.getRemoteAddressTCP().getPort() );
-	        MapRequest[] request = (MapRequest[]) object;
-
-          int len = request.length;
-          if (len < 1) System.err.println("Wrong len from NIO channel: " + len);
-	        //System.out.println("handleMapRequestArray: " + map.size());
-	        //if(NameNodeDummy.DEBUG)
-	        //if (request.getKey() % 1000 == 0)
-	        //System.out.println(request.getKey() + ", total object list size is " + listSize + "; map size is " + map.size());
-	        if (len > 0) {
-	          for (int i = 0; i < len; i++) {
-	            map.put(request[i].getKey(), request[i]);
-	            /**
-	            if(NameNodeDummy.TEST)
-	            System.out.println("Adding "
-	                + request[i].getInode().getLocalName()
-	                + " to " + parent.getFullPathName());
-	                **/
-	          }
-	          System.out.println("Map size " + map.size());
-	          request = null;
-	        }
-	        
-	        //list.add(request);
-	        if (parent == null) {
-	          NameNodeDummy.LOG
-	              .error("Namenode server not ready yet, do nothing!");
-	          return;
-	        }
-	        if (listSize == map.size()) {
-
-	          System.out.println("Server received all the data!" + map.size());
-	          this.receivedAllData(connection,listSize);
-	          SplitTree splitTree = new SplitTree();
-	          INode inode = splitTree.mergeListToINode(map);
-	          if(NameNodeDummy.DEBUG)
-	          System.out.println("After merged: inode = "
-	              + inode.getFullPathName());
-	          // this.addBlockMap(inode);
-	          if (parent != null) {
-	            // parent.addChild(inode);
-	            this.recursiveAddNode(inode, parent);
-	            }
-	          //Display tree.
-	          //System.out.println(Tools.display(inode, 10, true));
-	          map.clear();
-	          try {
-	            if (!INodeServer.isTest)
-	            NameNodeDummy.getNameNodeDummyInstance()
-	                .saveNamespace();
-	            System.out.println("Force saved the namespace!!");
-	          } catch (AccessControlException e) {
-	            e.printStackTrace();
-	          } catch (IOException e) {
-	            e.printStackTrace();
-	          }
-	          // Should update here.
-	         this.updateQuota();
-	        }
+          MapRequest[] request = (MapRequest[]) object;
+          UpdateNIOData update = new UpdateNIOData(request, hostName, parent, listSize, connection);
+          update.start();
 	      }
 
-	     private void updateQuota() {
-	       INodeTools.updateCountForQuotaRecursively(INodeServer.root, Quota.Counts.newInstance());
-         if(NameNodeDummy.DEBUG)
-         System.out.println(NameNodeDummy.getNameNodeDummyInstance().printNSInfo(root, 0, 10).replaceAll("&nbsp;", " ").replace("<br/>", "\n"));
-         
-	     }
-			private void handleMapRequest(Connection connection, Object object) {
-			  String hostName = connection.getRemoteAddressTCP().getHostName();
-			  Map<Integer,MapRequest> map = serversMap.get(hostName);
-			  if (map == null) {
-			    map = new HashMap<Integer,MapRequest>();
-			    serversMap.put(hostName, map);
-			  }
-			  //System.out.println(connection.getID() + " connection is " + connection.getRemoteAddressTCP().getHostName() + connection.getRemoteAddressTCP().getPort() );
-				MapRequest request = (MapRequest) object;
-				//if(NameNodeDummy.DEBUG)
-				if (request.getKey() % 1000 == 0)
-				System.out.println(request.getKey() + ", total object list size is " + listSize + "; map size is " + map.size());
-				map.put(request.getKey(), request);
-				//list.add(request);
-				if (parent == null) {
-					NameNodeDummy.LOG
-							.error("Namenode server not ready yet, do nothing!");
-					return;
-				}
-				if(NameNodeDummy.DEBUG)
-				System.out.println("Adding "
-						+ request.getInode().getLocalName()
-						+ " to " + parent.getFullPathName());
-				if (listSize == map.size()) {
 
-          System.out.println("Server received all the data!" + map.size());
-				  this.receivedAllData(connection,listSize);
-					SplitTree splitTree = new SplitTree();
-					INode inode = splitTree.mergeListToINode(map);
-					if(NameNodeDummy.DEBUG)
-					System.out.println("After merged: inode = "
-							+ inode.getFullPathName());
-					// this.addBlockMap(inode);
-					if (parent != null) {
-						// parent.addChild(inode);
-						this.recursiveAddNode(inode, parent);
-						}
-					//Display tree.
-					//System.out.println(Tools.display(inode, 10, true));
-					map.clear();
-					try {
-						if (!INodeServer.isTest)
-						NameNodeDummy.getNameNodeDummyInstance()
-								.saveNamespace();
-						System.out.println("Force saved the namespace!!");
-					} catch (AccessControlException e) {
-						e.printStackTrace();
-					} catch (IOException e) {
-						e.printStackTrace();
-					}
-				}
-			}
+//			private void handleMapRequest(Connection connection, Object object) {
+//			  String hostName = connection.getRemoteAddressTCP().getHostName();
+//			  Map<Integer,MapRequest> map = serversMap.get(hostName);
+//			  if (map == null) {
+//			    map = new HashMap<Integer,MapRequest>();
+//			    serversMap.put(hostName, map);
+//			  }
+//			  //System.out.println(connection.getID() + " connection is " + connection.getRemoteAddressTCP().getHostName() + connection.getRemoteAddressTCP().getPort() );
+//				MapRequest request = (MapRequest) object;
+//				//if(NameNodeDummy.DEBUG)
+//				if (request.getKey() % 1000 == 0)
+//				System.out.println(request.getKey() + ", total object list size is " + listSize + "; map size is " + map.size());
+//				map.put(request.getKey(), request);
+//				//list.add(request);
+//				if (parent == null) {
+//					NameNodeDummy.LOG
+//							.error("Namenode server not ready yet, do nothing!");
+//					return;
+//				}
+//				if(NameNodeDummy.DEBUG)
+//				System.out.println("Adding "
+//						+ request.getInode().getLocalName()
+//						+ " to " + parent.getFullPathName());
+//				if (listSize == map.size()) {
+//
+//          System.out.println("Server received all the data!" + map.size());
+//				  this.receivedAllData(connection,listSize);
+//					SplitTree splitTree = new SplitTree();
+//					INode inode = splitTree.mergeListToINode(map);
+//					if(NameNodeDummy.DEBUG)
+//					System.out.println("After merged: inode = "
+//							+ inode.getFullPathName());
+//					// this.addBlockMap(inode);
+//					if (parent != null) {
+//						// parent.addChild(inode);
+//						this.recursiveAddNode(inode, parent);
+//						}
+//					//Display tree.
+//					//System.out.println(Tools.display(inode, 10, true));
+//					map.clear();
+//					try {
+//						if (!INodeServer.isTest)
+//						NameNodeDummy.getNameNodeDummyInstance()
+//								.saveNamespace();
+//						System.out.println("Force saved the namespace!!");
+//					} catch (AccessControlException e) {
+//						e.printStackTrace();
+//					} catch (IOException e) {
+//						e.printStackTrace();
+//					}
+//				}
+//			}
 
-			private void finalResponse(Connection connection) {
-				ClientCommends cc = new ClientCommends();
-				cc.setCommand(0);
-				connection.sendTCP(cc);
-			}
+//			private void finalResponse(Connection connection) {
+//				ClientCommends cc = new ClientCommends();
+//				cc.setCommand(0);
+//				connection.sendTCP(cc);
+//			}
 			
-			private void receivedAllData(Connection connection, int size) {
-        ClientCommends cc = new ClientCommends();
-        cc.setCommand(1);
-        cc.setListSize(size);
-        connection.sendTCP(cc);
-      }
+
 			//waitForLoadingFSImage();
-			/**
-			 * If the sub-tree existing on the target NN, will recursively add
-			 * diff one
-			 * 
-			 * @param child
-			 */
-			private void recursiveAddNode(INode child, INodeDirectory parent) {
-				
-				INode temp = parent.getChild(
-						DFSUtil.string2Bytes(child.getLocalName()),
-						Snapshot.CURRENT_STATE_ID);
-				//Reset parent
-				child.setParent(parent);
-				if (child.isFile()) {
-					if (temp == null) {
-						parent.addChild(child);
-						
-						this.addINodeToMap(child);
-						NameNodeDummy.getNameNodeDummyInstance().addINode(
-								child.asFile());
-						NameNode.getNameNodeMetrics().incrFilesCreated();
-						NameNode.getNameNodeMetrics().incrCreateFileOps();
-						//This might a bug cause NSQuotaExceededException
-						//long increaseNS = child.computeQuotaUsage().get(Quota.NAMESPACE);
-						//NameNodeDummy.getNameNodeDummyInstance().setQuota(parent.getFullPathName(), (parent.computeQuotaUsage().get(Quota.NAMESPACE) + increaseNS), parent.computeQuotaUsage().get(Quota.DISKSPACE));
-					
-					}
-					return;
-				}
-				boolean isLoop = false;
-				if (temp != null) {
-				  // If child exist, compare if they have difference, if not , directly return;
-				  
-					//LOG.info(temp.computeQuotaUsage().get(Quota.NAMESPACE) +" vs " + child.computeQuotaUsage().get(Quota.NAMESPACE) + "Found path existing , ignore "
-						//	+ child.getFullPathName());
-					parent = (temp.isDirectory() ? temp.asDirectory() : parent);
-					isLoop = true;
-				} else {
-
-					//System.out.println("====" + child.getId()
-							//+ ";child.getParent.getFullPathName()=" + child.getParent().getFullPathName()
-						//	+ ";child.getGroupName()=" + child.getFullPathName());
-					/** Ignore Namespace (servername) **/
-					//if (child.getId() == 1&&child.getLocalName().startsWith(PREFIX)) {
-						//isLoop = true;
-					//} else {
-					if(child.getLocalName().endsWith(NameNodeDummy
-								.getNameNodeDummyInstance()
-								.getNamenodeAddress().getHostName())){
-						System.out.println("[INodeServer] Found transfer metadata back again:" + child.getFullPathName());
-						isLoop = true;
-					} else {
-						parent.addChild(child);
-						//Reset parent
-						//child.setParent(parent);
-						this.addChildren(child);
-						if (!INodeServer.isTest) {
-							//NameNode.getNameNodeMetrics().incrFilesCreated();
-							//NameNode.getNameNodeMetrics().incrCreateFileOps();
-							// This might caused a bug of NSQuotaExceededException
-
-							//long increaseNS = child.computeQuotaUsage().get(Quota.NAMESPACE);
-							//NameNodeDummy.getNameNodeDummyInstance().setQuota(parent.getFullPathName(), (parent.computeQuotaUsage().get(Quota.NAMESPACE) + increaseNS), parent.computeQuotaUsage().get(Quota.DISKSPACE));					
-							
-						}
-						return;
-					}
-
-				}
-				if(isLoop){
-				ReadOnlyList<INode> roList = child.asDirectory()
-						.getChildrenList(Snapshot.CURRENT_STATE_ID);
-				Iterator<INode> ite = roList.iterator();
-				//for (int i = 0; i < roList.size(); i++) {
-				while(ite.hasNext()) {
-					recursiveAddNode(ite.next(), parent);
-				}
-				}
-			}
+			
 
 			private void handleINode(Connection connection, Object object) {
 				INode request = (INode) object;
@@ -442,75 +302,28 @@ public class INodeServer extends Thread {
 				}
 			}
 
-			/**
-			 * 
-			 * @param inode
-			 */
-			private void addChildren(INode inode) {
+			
+		  private void createDummyFolder(String server, MoveNSRequest request) {
+		    server = INodeServer.PREFIX + server;
+		    INode temp = INodeServer.root.getChild(DFSUtil.string2Bytes(server),
+		        Snapshot.CURRENT_STATE_ID);
+		    if (temp != null) {
+		      parent = temp.asDirectory();
+		      return;
+		    }
+		    
+		    INodeDirectory root2 = new INodeDirectory(1, DFSUtil
+		        .string2Bytes(server), perm, Time.now());
+		    root2 = NameNodeDummy.getNameNodeDummyInstance().addQuota(root2);
+		    
+		    root.addChild(root2);
 
-				if (inode.isFile()) {
-					this.addINodeToMap(inode);
-					this.updateBlocksMap(inode.asFile());
-					return;
-				}
-				if (!inode.isDirectory()) {
-					System.err.println("Not a directory and file! " + inode.getFullPathName() + inode.isSymlink());
-					return;
-				}
-				ReadOnlyList<INode> roList = inode.asDirectory()
-						.getChildrenList(Snapshot.CURRENT_STATE_ID);
-				Iterator<INode> ite = roList.iterator();
-				//for (int i = 0; i < roList.size(); i++) {
-				while (ite.hasNext()) {
-					addChildren(ite.next());
-				}
-				if(!INodeServer.isTest)
-				this.addINodeToMap(inode);
-			}
+		    if (!INodeServer.isTest)
+		      UpdateNIOData.addINodeToMap(root2);
+		    parent = root2.asDirectory();
 
-			public void updateBlocksMap(INodeFile file) {
-				// Add file->block mapping
-				final BlockInfo[] blocks = file.getBlocks();
-				if (blocks != null) {
-					final BlockManager bm = nameNodeDummy.getBlockManager();
-					for (int i = 0; i < blocks.length; i++) {
-					  if (NameNodeDummy.DEBUG)
-						System.out
-								.println("[INodeServer:updateBlocksMap]--------Adding to blockmap: blockid = "
-										+ blocks[i].getBlockId()
-										+ "; Collection = "
-										+ file.getFullPathName());
-						file.setBlock(i, bm.addBlockCollection(blocks[i], file));
-					}
-				}
-			}
-
-			private void addINodeToMap(INode inode) {
-				NameNodeDummy.getNameNodeDummyInstance().getFSNamesystem()
-						.getFSDirectory().addToInodeMap(inode);
-			}
-
-			private void createDummyFolder(String server, MoveNSRequest request) {
-				server = PREFIX + server;
-				INode temp = root.getChild(DFSUtil.string2Bytes(server),
-						Snapshot.CURRENT_STATE_ID);
-				if (temp != null) {
-					parent = temp.asDirectory();
-					return;
-				}
-				
-				INodeDirectory root2 = new INodeDirectory(1, DFSUtil
-						.string2Bytes(server), perm, Time.now());
-				root2 = NameNodeDummy.getNameNodeDummyInstance().addQuota(root2);
-				
-				root.addChild(root2);
-
-				if (!INodeServer.isTest)
-				this.addINodeToMap(root2);
-				parent = root2.asDirectory();
-
-			}
-
+		  }
+		  
 			private void handleMoveNSRequest(Connection connection, Object object) {
 				
 				MoveNSRequest request = (MoveNSRequest) object;
@@ -526,7 +339,7 @@ public class INodeServer extends Thread {
 					 * Avoid create duplicate namespace after first move
 					 */
 					if(request.getNamespace()==null)
-					this.createDummyFolder(connection.getRemoteAddressTCP()
+					  this.createDummyFolder(connection.getRemoteAddressTCP()
 							.getHostName(), request);
 					for (int k = loop; k > 0; k--) {
 
@@ -559,7 +372,7 @@ public class INodeServer extends Thread {
 								+ parent.getFullPathName());
 						parent.addChild(child);
 						if (!INodeServer.isTest)
-						this.addINodeToMap(child);
+						  UpdateNIOData.addINodeToMap(child);
 						child.setParent(parent);
 						parent = child.asDirectory();
 					}
@@ -657,6 +470,7 @@ public class INodeServer extends Thread {
 		FieldSerializer file = new FieldSerializer(
 				kryo, INodeFile.class);
 		file.removeField("parent");
+		//file.removeField("next");
 		//file.removeField("blocks");
 		kryo.register(INodeFile.class, file);
 		
@@ -698,7 +512,6 @@ public class INodeServer extends Thread {
 		kryo.register(org.apache.hadoop.hdfs.server.namenode.dummy.MapRequest.class);
 		kryo.register(org.apache.hadoop.hdfs.server.namenode.dummy.MapRequest[].class);
 		//kryo.register(org.apache.hadoop.hdfs.server.namenode.dummy.SubTree.class);
-
 		kryo.register(
         org.apache.hadoop.hdfs.server.blockmanagement.BlockInfo.class,
         new Serializer<BlockInfo>() {
@@ -747,6 +560,9 @@ public class INodeServer extends Thread {
 				org.apache.hadoop.hdfs.server.blockmanagement.DatanodeDescriptor.class,
 				datanodeDescriptorSerializer);
 
+
+    kryo.register(org.apache.hadoop.hdfs.protocol.Block.class);
+    
 		kryo.register(org.apache.hadoop.hdfs.protocol.DatanodeInfo.AdminStates.class);
 		kryo.register(org.apache.hadoop.hdfs.server.blockmanagement.DatanodeDescriptor.CachedBlocksList.class);
 

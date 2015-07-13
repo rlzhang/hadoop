@@ -24,7 +24,7 @@ public class MoveNSRequest {
   private List<Long> nsQuota = new ArrayList<Long>();
   private List<Long> dsQuota = new ArrayList<Long>();
   
-  private int listSize;
+  private long listSize;
 
   public List<Long> getDsQuota() {
     return dsQuota;
@@ -138,11 +138,11 @@ public class MoveNSRequest {
     this.namespace = namespace;
   }
 
-  public int getListSize() {
+  public long getListSize() {
     return listSize;
   }
 
-  public void setListSize(int listSize) {
+  public void setListSize(long listSize) {
     this.listSize = listSize;
   }
 

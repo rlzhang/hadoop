@@ -39,7 +39,7 @@ public class GettingStarted extends Thread {
   }
 
   static boolean isRun = false;
-  public static void setRun(boolean run) {
+  public synchronized static void setRun(boolean run) {
     GettingStarted.isRun = run;
   }
   public GettingStarted(NameNode nn) {

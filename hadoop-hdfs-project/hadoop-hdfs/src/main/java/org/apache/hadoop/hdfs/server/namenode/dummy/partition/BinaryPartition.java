@@ -35,7 +35,7 @@ public class BinaryPartition {
    * If name node capacity less than threshhold, will trigger automatically
    * partition.
    */
-  private final static double THRESHOLD = 0.50;
+  private final static double THRESHOLD = 0.20;
 
   /**
    * How much percentage expect to move out, for knapsack problem.
@@ -52,7 +52,7 @@ public class BinaryPartition {
    */
   private final static double FREESPACE = 0.50;
 
-  private final static int MAX_LEVEL = 10;
+  private final static int MAX_LEVEL = 20;
 
   NamenodeTable nt;
 
@@ -144,6 +144,8 @@ public class BinaryPartition {
         }
       }
     }
+    nt = map.get(NameNodeDummy
+        .getNameNodeDummyInstance().getNamenodeAddress().getHostName());
     if (nt == null) {
       System.err.println("Cannot run pre decision, NamenodeTable is null!");
       return null;
@@ -277,6 +279,7 @@ public class BinaryPartition {
     tm.setDir(p.inode);
     tm.setType(2);
     tm.setStartFromLeft(p.isStartFromLeft);
+    tm.setTargetNN(this.getMaxCapacityNamenode(map));
     //tm.setQueue(p.queue);
     tm.setQueue(p.allQueue);
     if (p.inode != null)

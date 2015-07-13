@@ -29,6 +29,7 @@ public class RemoveInmemoryNamespace extends Thread {
     // pool id.
     Map<String, List<Long>> map;
     try {
+      //For block report, remove for now. Have to fix soon.
       map = nn.getBlockInfos(fs, inode);
       nn.setBlockIds(map);
       client.cleanup();

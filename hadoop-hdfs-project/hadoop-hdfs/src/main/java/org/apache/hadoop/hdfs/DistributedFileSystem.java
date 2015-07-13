@@ -1375,7 +1375,11 @@ public class DistributedFileSystem extends FileSystem {
     if (!isCached) {
       //it throw java.lang.IllegalStateException, have to fix.
       // HdfsFileStatus hfs = dfs.getOverflowTable("/");
+      
+      
       //String root = OverflowTable.getNaturalRootFromFullPath(path);
+      //HdfsFileStatus hfs = dfs.getFileInfo(root);
+      
       HdfsFileStatus hfs = dfs.getFileInfo(PRE);
       NameNodeDummy.debug("1) [DistributedFileSystem] getOverflowTable is "
           + hfs);
@@ -1385,7 +1389,7 @@ public class DistributedFileSystem extends FileSystem {
         NameNodeDummy.debug("2) [DistributedFileSystem] getOverflowTable is "
             + (hfs.getEs() == null ? "" : hfs.getEs().length));
         //if (PRE.equals(root))
-          nn.buildOrAddBSTAllClient(hfs.getEs());
+        nn.buildOrAddBSTAllClient(hfs.getEs());
         //else
           //nn.buildOrAddBSTClient(hfs.getEs());
         System.out.println("[buildOrAddBST] Overflow table has records "
@@ -1411,7 +1415,8 @@ public class DistributedFileSystem extends FileSystem {
         long start = System.currentTimeMillis();
         String path = getPathName(p);
         //Build in memory overflow table.
-        getOverflowTable(path, dfs, nn);
+        if (NameNodeDummy.useCache)
+          getOverflowTable(path, dfs, nn);
         DFSClientProxy dfs = getRightDFSClient(path);
         path = dfs.path;
         HdfsFileStatus fi = dfs.client.getFileInfo(path);

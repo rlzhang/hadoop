@@ -72,6 +72,7 @@ public class NameNodeDummy {
   public static int EMPTY_HdfsFileStatus = -111;
   private String originalBpId;
   public static boolean useDistributedNN = true;
+  public static boolean useCache = true;
   public static boolean TEST = false;
   public final static boolean DEBUG = false;
   public final static boolean INFOR = true;

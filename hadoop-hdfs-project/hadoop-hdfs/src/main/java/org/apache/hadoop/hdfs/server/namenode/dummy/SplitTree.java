@@ -1,13 +1,13 @@
 package org.apache.hadoop.hdfs.server.namenode.dummy;
 
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import javax.servlet.jsp.JspWriter;
+
+import org.apache.hadoop.fs.ContentSummary;
 import org.apache.hadoop.hdfs.server.namenode.INode;
 import org.apache.hadoop.hdfs.server.namenode.NameNodeDummy;
 import org.apache.hadoop.hdfs.server.namenode.Quota;
@@ -21,47 +21,105 @@ import org.apache.hadoop.hdfs.util.ReadOnlyList;
  */
 public class SplitTree {
   private AtomicInteger index = new AtomicInteger(0);
-  private List<MapRequest> list = new ArrayList<MapRequest>();
-
+  //private List<MapRequest> list = new ArrayList<MapRequest>();
+  private CallBack callback;
+  private JspWriter out;
+  private long quota;
+  private MapRequest[] list;
+  private int i = 0;
+  
+//  public SplitTree(CallBack callback, JspWriter out) {
+//    this.register(callback, out);
+//  }
+  public void register(CallBack callback, JspWriter out) {
+    this.callback = callback;
+    this.out = out;
+  }
   /**
    * Split big tree structure to nodes or small sub-tree
    * @param inode
    * @param size Decide how and when to split a tree
    * @param parent
    */
-  public void splitToSmallTree(INode inode, int parent) {
-    int myID = this.increaseIndex();
-    list.add(myID, new MapRequest(myID, parent, inode));
-    //inode.setParent(null);
-    if (!inode.isDirectory())
-      return;
+//  public void splitToSmallTree(INode inode, int parent) {
+//    int myID = this.increaseIndex();
+//    list.add(myID, new MapRequest(myID, parent, inode));
+//    //inode.setParent(null);
+//    if (!inode.isDirectory())
+//      return;
+//
+//    ReadOnlyList<INode> roList =
+//        inode.asDirectory().getChildrenList(Snapshot.CURRENT_STATE_ID);
+//
+//    Iterator<INode> ite = roList.iterator();
+//    //for (int i = 0; i < roList.size(); i++) {
+//    while (ite.hasNext()) {
+//      splitToSmallTree(ite.next(), myID);
+//    }
+//
+//    //inode.asDirectory().clearChildren();
+//  }
 
-    ReadOnlyList<INode> roList =
-        inode.asDirectory().getChildrenList(Snapshot.CURRENT_STATE_ID);
-
-    Iterator<INode> ite = roList.iterator();
-    //for (int i = 0; i < roList.size(); i++) {
-    while (ite.hasNext()) {
-      splitToSmallTree(ite.next(), myID);
+  public long getQuota(INode inode) {
+    ContentSummary cs = inode.computeContentSummary();
+    quota = cs.getDirectoryCount() + cs.getFileCount();
+    //quota = inode.computeQuotaUsage().get(Quota.NAMESPACE);
+    System.out.println("Quota is " + quota);
+    remain = quota;
+    return quota;
+  }
+  
+  private void getSendArray(long size) {
+    //MapRequest[] sendArray = null;
+    list = null;
+    if (size > INodeServer.MAX_GROUP){
+      list = new MapRequest[INodeServer.MAX_GROUP];
+    } else {
+      list = new MapRequest[(int) size];
     }
 
-    //inode.asDirectory().clearChildren();
+    //if (NameNodeDummy.TEST)
+    //System.out.println("Group size is " + sendArray.length);
+    //return sendArray;
   }
-
   /**
    * Split big tree structure to each nodes or small sub-tree (On building...)
    * @param inode
    * @param size Decide how and when to split a tree
    * @param parent
    */
-  public void intelligentSplitToSmallTree(INode inode, long size, int parent) {
+  public synchronized boolean intelligentSplitToSmallTree(INode inode, long size, int parent) {
 
+    this.getSendArray(quota);
     boolean ifSuccess =
-        this.intelligentSplitToSmallTreeBase(inode, size, parent, false);
+     this.intelligentSplitToSmallTreeBase(inode, size, parent, false);
+    list = null;
+    return ifSuccess;
     //if(ifSuccess)
     //map.get(new Integer(0)).getInode().asDirectory().clearChildren();
   }
 
+  
+  long remain;
+  private boolean sendData(int size){
+    boolean suc = true;
+    if (size == list.length) {
+      try {
+        //System.out.println("Send data size is " + size);
+        this.callback.sendTCP(list, out);
+        remain = remain - list.length;
+        i = 0;
+        this.getSendArray(remain);
+        
+     } catch (Exception e) {
+       //e.printStackTrace();
+       suc = false;
+       System.err.println(e.getMessage());
+       
+     }
+    }
+    return suc;
+  }
   /**
    * Basic function.
    * @param inode
@@ -70,14 +128,21 @@ public class SplitTree {
    * @param ifBreak
    * @return
    */
-  private boolean intelligentSplitToSmallTreeBase(INode inode, long size,
+  private synchronized boolean intelligentSplitToSmallTreeBase(INode inode, long size,
       int parent, boolean ifBreak) {
-    boolean ifSuccess = false;
+    //boolean ifSuccess = false;
+    if (remain == 0) return true;
     int myID = this.increaseIndex();
     if (NameNodeDummy.DEBUG)
       System.out.println("localname:" + inode.getLocalName());
-    list.add(new MapRequest(myID, parent, inode));
-    long quota = inode.computeQuotaUsage().get(Quota.NAMESPACE);
+    //list.add(new MapRequest(myID, parent, inode));
+    list[i++] = new MapRequest(myID, parent, inode);
+    boolean isSuc = this.sendData(i);
+    if (!isSuc) {
+      System.err.println("Failed to send " + inode.getFullPathName());
+      return false;
+    }
+    /**
     int splitSize = (int) ((quota / size) + 1);
     if (NameNodeDummy.DEBUG)
       System.out.println("Split to " + splitSize + "; metadata size is "
@@ -87,17 +152,17 @@ public class SplitTree {
       //inode.setParent(null);
     } else
       return ifSuccess;
-
+   **/
     if (ifBreak || !inode.isDirectory())
       return true;
 
     ReadOnlyList<INode> roList =
         inode.asDirectory().getChildrenList(Snapshot.CURRENT_STATE_ID);
     //if (checkSize(splitSize, roList.size())) {
-    Iterator<INode> ite = roList.iterator();
-    //for (int i = 0; i < roList.size(); i++) {
-    while (ite.hasNext()) {
-      intelligentSplitToSmallTreeBase(ite.next(), size, myID, false);
+    //Iterator<INode> ite = roList.iterator();
+    for (int i = 0; i < roList.size(); i++) {
+   // while (ite.hasNext()) {
+      intelligentSplitToSmallTreeBase(roList.get(i), size, myID, false);
     }
     //}
 
@@ -162,9 +227,9 @@ public class SplitTree {
     return root;
   }
 
-  public List<MapRequest> getSplittedNodes() {
-    return list;
-  }
+//  public List<MapRequest> getSplittedNodes() {
+//    return list;
+//  }
 
   public int getIndex() {
     return index.get();

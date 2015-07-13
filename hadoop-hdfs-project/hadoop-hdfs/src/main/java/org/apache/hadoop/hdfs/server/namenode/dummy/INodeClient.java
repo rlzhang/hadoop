@@ -27,7 +27,7 @@ import com.esotericsoftware.kryonet.Listener;
  * @author Ray Zhang
  *
  */
-public class INodeClient {
+public class INodeClient implements CallBack{
   private final static long SIZE_TO_SPLIT = 1l;
   private static Map<String, INodeClient> nioClients =
       new ConcurrentHashMap<String, INodeClient>();
@@ -205,18 +205,20 @@ public class INodeClient {
     int size = -1;
     try {
       size = client.sendTCP(obj);
+      //System.out.println(size + " vs " + MemoryCounter.estimate(obj));
       if (size == 0) throw new Exception("Send size should not be zero!");
       if (!this.client.isConnected()) throw new Exception("Lost connection, try to reconnect...");
       //size = client.sendUDP(obj);
     } catch (Exception e) {
       //e.printStackTrace();
-      System.err.println(e.getMessage());
+      System.err.println("ERROR!" + e.getMessage());
       if (obj instanceof org.apache.hadoop.hdfs.server.namenode.dummy.MapRequest) {
         System.err.println("[ERROR] obj = " + ((MapRequest) obj).getKey());
       }
 
       try {
-        Thread.sleep(100);
+        Thread.sleep(2000);
+        System.gc();
       } catch (InterruptedException e1) {
         e1.printStackTrace();
       }
@@ -234,7 +236,6 @@ public class INodeClient {
         //this.close();
         //this.connect();
       }
-
     } finally {
       obj = null;
     }
@@ -258,7 +259,8 @@ public class INodeClient {
     return size;
   }
 
-  private int listSize = -1;
+  // How many objects to send.
+  private long listSize = -1;
 
   /**
    * Send namespace to another namenode server
@@ -348,15 +350,14 @@ public class INodeClient {
        * Send the namespace tree
        */
       SplitTree splitTree = new SplitTree();
-
       // Temporary unlink parent reference, has to been fix later.
       //subTree.setParent(null);
-
-      splitTree.intelligentSplitToSmallTree(subTree, SIZE_TO_SPLIT, 0);
-
-      List<MapRequest> list = splitTree.getSplittedNodes();
-
-      int size = list.size();
+      splitTree.register(this, out);
+      
+      long size = splitTree.getQuota(subTree);
+      //List<MapRequest> list = splitTree.getSplittedNodes();
+      System.out.println("Total size is " + size);
+      
       listSize = size;
       request.setListSize(size);
 
@@ -365,62 +366,65 @@ public class INodeClient {
       int response = this.sendTCP(request, out);
       if (NameNodeDummy.DEBUG)
         System.out.println("; list size is " + size);
-      int remain = size;
-      int count = 0;
+      
+     
+      //int remain = size;
+      //int count = 0;
       if (response > 0) {
-
+        ifSuccess = splitTree.intelligentSplitToSmallTree(subTree, SIZE_TO_SPLIT, 0);
         /** Prepare to send all namespace sub-tree **/
-        Iterator<MapRequest> iter = list.iterator();
-        MapRequest[] sendArray = this.getSendArray(size);
-        int i = 0;
-        int len = sendArray.length -1;
-        while (iter.hasNext()) {
-        //for (int i = 0; i < size; i++) {
-          MapRequest mapRequest = iter.next();
-          sendArray[i] = mapRequest;
-          if (i == len) {
-            i = 0;
-            count++;
-            int s = this.sendTCP(sendArray, out);
-            //if (NameNodeDummy.TEST) {
-            System.out.println(remain + " = remain, send tcp size " + s + ", count is " + count + ", array len is " + len);
-           // }
-            remain = remain - sendArray.length;
-            if (remain == 0) {
-              break;
-            }
-            sendArray = this.getSendArray(remain);
-            len = sendArray.length -1; 
-          } else {
-            i++;
-          }
-          //MapRequest mapRequest = iter.next();
-          //if (out != null)
-          // this.nnd.logs(out, "Sending "
-          //System.out.println("Sending " + mapRequest.getKey() + " to server "
-            //  + this.server + "; send object list size is " + size);
-          /**
-          else {
-            if (NameNodeDummy.DEBUG)
-              System.out.println("Sending " + mapRequest.getKey()
-                  + " to server " + this.server + "; send object list size is "
-                  + size);
-          }
-          **/
-            
-          //mapRequest = null;
-        }
+//        Iterator<MapRequest> iter = list.iterator();
+//        MapRequest[] sendArray = this.getSendArray(size);
+//        int i = 0;
+//        int len = sendArray.length -1;
+//        while (iter.hasNext()) {
+//        //for (int i = 0; i < size; i++) {
+//          MapRequest mapRequest = iter.next();
+//          sendArray[i] = mapRequest;
+//          if (i == len) {
+//            i = 0;
+//            count++;
+//            int s = this.sendTCP(sendArray, out);
+//            //if (NameNodeDummy.TEST) {
+//            System.out.println(remain + " = remain, send tcp size " + s + ", count is " + count + ", array len is " + len);
+//           // }
+//            remain = remain - sendArray.length;
+//            if (remain == 0) {
+//              break;
+//            }
+//            sendArray = this.getSendArray(remain);
+//            len = sendArray.length -1; 
+//          } else {
+//            i++;
+//          }
+//          //MapRequest mapRequest = iter.next();
+//          //if (out != null)
+//          // this.nnd.logs(out, "Sending "
+//          //System.out.println("Sending " + mapRequest.getKey() + " to server "
+//            //  + this.server + "; send object list size is " + size);
+//          /**
+//          else {
+//            if (NameNodeDummy.DEBUG)
+//              System.out.println("Sending " + mapRequest.getKey()
+//                  + " to server " + this.server + "; send object list size is "
+//                  + size);
+//          }
+//          **/
+//            
+//          //mapRequest = null;
+//        }
+        
       }
 
-      ifSuccess = true;
-      list.clear();
-      list = null;
-      System.out.println("Client successfully send all data: " + size);
+      //ifSuccess = true;
+      //list.clear();
+      //list = null;
+      System.out.println("Client " + (ifSuccess == true ? "successfully" : "failed") + " send all data: " + size);
       if (out != null)
       NameNodeDummy.getNameNodeDummyInstance().logs(out, "Send INode spend " + (System.currentTimeMillis() - start)
-          + " milliseconds!" + count);
+          + " milliseconds!" + listSize);
       System.out.println("Send INode spend " + (System.currentTimeMillis() - start)
-          + " milliseconds!" + count);
+          + " milliseconds!" + listSize);
 
     } catch (Exception e) {
       System.err.println("Failed to send namespace: " + e.getMessage());
@@ -449,18 +453,7 @@ public class INodeClient {
     return ifSuccess;
   }
 
-  private MapRequest[] getSendArray(int size) {
-    MapRequest[] sendArray = null;
-    if (size > INodeServer.MAX_GROUP){
-      sendArray = new MapRequest[INodeServer.MAX_GROUP];
-    } else {
-      sendArray = new MapRequest[size];
-    }
 
-    //if (NameNodeDummy.TEST)
-    //System.out.println("Group size is " + sendArray.length);
-    return sendArray;
-  }
   private void waitResponseFromTargetNN() {
     while (!isReponsed) {
       try {
@@ -476,7 +469,7 @@ public class INodeClient {
    */
   private boolean waitServerReceivedAllData() {
     boolean success = true;
-    int waitLoops = 30 * 10;
+    int waitLoops = 60 * 10;
     int i = 0;
     while (!sendDone) {
       i++;
@@ -484,10 +477,16 @@ public class INodeClient {
         System.err
             .println("Error! Server didn't received all the datas. Move namespace failed!");
         success = false;
+        
+        //Tell server reset in memory map.
+        ClientCommends cc = new ClientCommends();
+        cc.setCommand(4);
+        if (client != null)
+          client.sendTCP(cc);
         break;
       }
       try {
-        Thread.sleep(10);
+        Thread.sleep(100);
       } catch (InterruptedException e) {
         e.printStackTrace();
       }

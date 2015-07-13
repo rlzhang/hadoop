@@ -1589,7 +1589,13 @@ public class FSDirectory implements Closeable {
    * @return
    */
   private HdfsFileStatus setOverflowTable(INode i, String srcs, HdfsFileStatus hfs) {
-    ExternalStorage[] es = NameNodeDummy.getNameNodeDummyInstance().getRootExternalStorages(srcs);
+    ExternalStorage[] es = null;
+    if (NameNodeDummy.useCache){
+      es = NameNodeDummy.getNameNodeDummyInstance().getRootExternalStorages(srcs);
+    } else {
+      es = NameNodeDummy.getNameNodeDummyInstance().findExternalNN(srcs);
+    }
+    //ExternalStorage[] es = NameNodeDummy.getNameNodeDummyInstance().getRootExternalStorages(srcs);
     //ExternalStorage[] es = NameNodeDummy.getNameNodeDummyInstance().findExternalNN(srcs);
     
     if (es == null){
