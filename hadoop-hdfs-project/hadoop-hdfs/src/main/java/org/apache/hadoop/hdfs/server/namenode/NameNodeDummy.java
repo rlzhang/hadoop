@@ -75,7 +75,7 @@ public class NameNodeDummy {
   public static boolean useDistributedNN = true;
   public static boolean useCache = true;
   public static boolean TEST = false;
-  public final static boolean DEBUG = true;
+  public final static boolean DEBUG = false;
   public final static boolean INFOR = true;
   public final static boolean WARN = true;
   public final static boolean CreateInMemoryTable = true;

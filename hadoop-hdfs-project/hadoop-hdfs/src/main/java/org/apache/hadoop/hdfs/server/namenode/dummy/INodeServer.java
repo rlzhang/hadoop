@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -95,7 +96,7 @@ public class INodeServer extends Thread {
     if (threadPool == null)
       synchronized(lock) {
         if (threadPool == null)
-        threadPool = new ThreadPoolExecutor(totalThread,
+        threadPool = new ThreadPoolExecutor(1,
             totalThread, 60, TimeUnit.SECONDS,
             new ArrayBlockingQueue<Runnable>(5000),
             new ThreadPoolExecutor.CallerRunsPolicy());
@@ -139,7 +140,7 @@ public class INodeServer extends Thread {
   }
 
   private void kickOff(int tcpPort, int udpPort) throws IOException {
-    Server server = new Server(OBJECT_BUFFER, OBJECT_BUFFER * 10);
+    Server server = new Server(OBJECT_BUFFER, OBJECT_BUFFER );
     server.addListener(new Listener() {
       // If you use same hostname and multiple client instances to connect the same server, will cause issue.
       //private Map<Integer,MapRequest> map = new HashMap<Integer,MapRequest>();
@@ -175,7 +176,7 @@ public class INodeServer extends Thread {
           if (response.getCommand() == 4) {
             String hostName =
                 connection.getRemoteAddressTCP().getAddress().getHostAddress();
-            INodeServer.getThreadPool().shutdown();
+            //INodeServer.getThreadPool().shutdown();
             Map<Integer, MapRequest> map =
                 UpdateNIOData.getServersMap().get(hostName);
             if (map != null) {
@@ -250,12 +251,15 @@ public class INodeServer extends Thread {
             + response.getPoolId());
       }
 
+      private AtomicInteger count = new AtomicInteger(0);
       private void handleMapRequestArray(Connection connection, Object object) {
-        INodeServer.threadPool(100);
+        if (NameNodeDummy.DEBUG)
+          System.out.println("Received data from client(MapRequestArray) " + count.getAndIncrement());
+        //INodeServer.threadPool(100);
         UpdateNIOData update =
             new UpdateNIOData(object, parent, listSize, connection);
-        INodeServer.getThreadPool().execute(update);
-        //update.start();
+        //INodeServer.getThreadPool().execute(update);
+        update.start();
       }
       
     

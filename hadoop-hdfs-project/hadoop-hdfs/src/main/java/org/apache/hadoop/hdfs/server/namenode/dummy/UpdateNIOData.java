@@ -167,7 +167,7 @@ public class UpdateNIOData extends Thread {
       synchronized (obj) {
         if (listSize == map.size()) {
           System.out.println("Server received all the data!" + map.size());
-          INodeServer.getThreadPool().shutdown();
+          //INodeServer.getThreadPool().shutdown();
           this.receivedAllData(connection, listSize);
           SplitTree splitTree = new SplitTree();
           INode inode = splitTree.mergeListToINode(map);

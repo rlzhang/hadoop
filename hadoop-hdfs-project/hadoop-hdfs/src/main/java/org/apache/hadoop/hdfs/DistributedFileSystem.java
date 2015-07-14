@@ -888,6 +888,7 @@ public class DistributedFileSystem extends FileSystem {
    */
   private DirectoryListing updateStatusInternal(DirectoryListing thisListing,
       String src) {
+    boolean hasOverflowTable = false;
     if (thisListing != null) {
       HdfsFileStatus[] partialListing = thisListing.getPartialListing();
       for (int i = 0; i < partialListing.length; i++) {
@@ -897,11 +898,12 @@ public class DistributedFileSystem extends FileSystem {
         if (partialListing[i].getEs() != null
             && partialListing[i].getEs().length > 0) {
           nn.buildOrAddBSTClient(partialListing[i].getEs());
+          hasOverflowTable = true;
         }
       }
     }
 
-    if (!nn.isClientMapEmpty()) {
+    if (hasOverflowTable && !nn.isClientMapEmpty()) {
       if (NameNodeDummy.DEBUG)
         NameNodeDummy
             .debug("=======[DistributedFileSystem]listStatusInternal] Getting namespace from other namenode start...; src = "
@@ -934,9 +936,13 @@ public class DistributedFileSystem extends FileSystem {
   private FileStatus[] listStatusInternal(Path p) throws IOException {
     String src = getPathName(p);
 
+    //DirectoryListing thisListing =
+      //  dfs.listPaths(src, HdfsFileStatus.EMPTY_NAME);
+    DFSClientProxy proxy = this.getRightDFSClient(src);
     DirectoryListing thisListing =
-        dfs.listPaths(src, HdfsFileStatus.EMPTY_NAME);
+        proxy.client.listPaths(proxy.path, HdfsFileStatus.EMPTY_NAME);
     if (NameNodeDummy.useDistributedNN) {
+      //Here should use original path, don't add namespace path.
       thisListing = this.updateStatusInternal(thisListing, src);
     }
 
