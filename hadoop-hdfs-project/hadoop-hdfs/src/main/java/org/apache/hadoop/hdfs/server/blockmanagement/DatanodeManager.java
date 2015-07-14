@@ -1526,7 +1526,7 @@ public class DatanodeManager {
         if(NameNodeDummy.getNameNodeDummyInstance().isNotifyDatanode()){
         	String poolId = NameNodeDummy.getNameNodeDummyInstance().getOriginalBpId();
         	long[] blockIds = NameNodeDummy.getNameNodeDummyInstance().blockIdsToLong(nodeinfo.getHostName());
-        	if(blockIds!=null){
+        	if(blockIds != null){
         	NameNodeDummy.LOG.info("Notify datanode update their block pool ids and send block report to new NN. Datanode server="+nodeinfo.getHostName()+";block count="+blockIds.length+";poolId="+poolId);
         	NameNodeDummy.getNameNodeDummyInstance().setNotifyDatanode(Boolean.FALSE);
         	return new DatanodeCommand[]{new PoolIdCommand(DatanodeProtocol.DNA_ADDPOOLID,poolId,blockIds)};

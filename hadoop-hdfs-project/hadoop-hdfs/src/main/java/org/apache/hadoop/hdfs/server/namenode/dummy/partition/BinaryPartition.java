@@ -35,22 +35,22 @@ public class BinaryPartition {
    * If name node capacity less than threshhold, will trigger automatically
    * partition.
    */
-  private final static double THRESHOLD = 0.20;
+  private final static double THRESHOLD = 0.30;
 
   /**
-   * How much percentage expect to move out, for knapsack problem.
+   * How much percentage at least expect to move out, for knapsack problem.
    */
-  private final static double TARGETMOVE = 0.10;
+  //private final static double TARGETMOVE = 0.10;
 
   /**
    * Give each target name node space to grow after moving namespace
    */
-  private final static double GROWSPACE = 0.05;
+  private final static double GROWSPACE = 0.10;
 
   /**
    * Prepare at least has this number of free space, after source name node moved namespace out.
    */
-  private final static double FREESPACE = 0.50;
+  private final static double FREESPACE = THRESHOLD + GROWSPACE;
 
   private final static int MAX_LEVEL = 20;
 
@@ -152,7 +152,7 @@ public class BinaryPartition {
     }
     external =
         this.knapsackCluster(external,
-            (int) (nt.getTotalCapacity() * TARGETMOVE));
+            (int) (nt.getTotalCapacity() * GROWSPACE));
     if (external == null)
       return null;
     // map = this.sortMap(map);
@@ -234,6 +234,7 @@ public class BinaryPartition {
   /**
    * Check if match minimum requirement to move
    * After move data, we should keep the source name node memory under some percentage, as like 40% free space.
+   * But you don't want to move to much out, as like more than half of namespace?
    * @param nt The source name node.
    * @param sizeToMove
    * @param growSpace
@@ -241,15 +242,16 @@ public class BinaryPartition {
    */
   private boolean ifGoodOnSourceNN(NamenodeTable nt, long sizeToMove,
       double freeSpace) {
-    System.out
-        .println("[ifLargeEnoughToMove] The source name node server: after move out "
-            + (nt.getFreeCapacity() + sizeToMove)
-            + "; expect free space "
-            + nt.getTotalCapacity() * freeSpace);
-    System.out.println("Total capacity is " + nt.getTotalCapacity());
     long after = (nt.getFreeCapacity() + sizeToMove);
-    return (after > nt.getTotalCapacity() * freeSpace && after < nt
-        .getTotalCapacity()) ? true : false;
+    System.out
+        .println("[ifGoodOnSourceNN] The source name node server: after move out has "
+            + after
+            + "; expect free space "
+            + nt.getTotalCapacity() * freeSpace + ";" + "Cannot large than " + nt.getTotalCapacity()/2 + ", size to move out " + sizeToMove);
+    //System.out.println("[ifGoodOnSourceNN]  Cannot large than " + nt.getTotalCapacity()/2 + ", size to move out " + sizeToMove);
+   
+    return (after > nt.getTotalCapacity() * freeSpace && sizeToMove < (nt
+        .getTotalCapacity() / 2)) ? true : false;
   }
 
   /**
@@ -266,6 +268,13 @@ public class BinaryPartition {
     System.out.println();
     if (type1 != null && type1.getDir() != null)
       return type1;
+    
+    // Test only!
+    if (true){
+      System.out.println("Nothing to move!");
+      return null;
+    }
+      
     // Check if type two matches
     Pairs p = this.divideOriginalTreeInt2(map, root, thisServer);
     if (p == null)
@@ -362,6 +371,7 @@ public class BinaryPartition {
             && this.ifGoodOnSourceNN(map.get(thisServer),
                 this.getINodeSize(inode), sourceNNFree)) {
           queue.clear();
+          queue = null;
           tm.setDir(inode.asDirectory());
           tm.setTargetNN(max);
           return tm;
@@ -381,6 +391,7 @@ public class BinaryPartition {
     ToMove tm = new ToMove();
     if (level > MAX_LEVEL) {
       queue.clear();
+      queue = null;
       return null;
     }
 
@@ -395,6 +406,8 @@ public class BinaryPartition {
                 this.getINodeSize(inode), sourceNNFree)) {
           queue2.clear();
           queue.clear();
+          queue2 = null;
+          queue = null;
           tm.setDir(inode);
           tm.setTargetNN(max);
           return tm;
@@ -405,6 +418,7 @@ public class BinaryPartition {
       }
     }
     queue.clear();
+    queue = null;
     return this.divideOriginalTreeInt1Int(map, queue2, level + 1, thisServer,
         targetNNGrow, sourceNNFree);
 
@@ -489,9 +503,10 @@ public class BinaryPartition {
         (long) (cur.getTotalCapacity() * FREESPACE) - cur.getFreeCapacity();
 
     //How much can accept on target name node
+    NamenodeTable tar = this.getMaxCapacityNamenode(map);
     long end =
-        (long) (this.getMaxCapacityNamenode(map).getFreeCapacity() - this
-            .getMaxCapacityNamenode(map).getTotalCapacity() * FREESPACE);
+        (long) (tar.getFreeCapacity() -
+            tar.getTotalCapacity() * FREESPACE);
     this.getSum(hashs, start, end);
     /**
      * Check size from right to left, don't need for now.

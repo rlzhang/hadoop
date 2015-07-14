@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.servlet.jsp.JspWriter;
 
@@ -74,10 +75,11 @@ public class NameNodeDummy {
   public static boolean useDistributedNN = true;
   public static boolean useCache = true;
   public static boolean TEST = false;
-  public final static boolean DEBUG = false;
+  public final static boolean DEBUG = true;
   public final static boolean INFOR = true;
   public final static boolean WARN = true;
   public final static boolean CreateInMemoryTable = true;
+  public final static boolean PROCESSBLOCKREPORT = false;
   // private static Map<String, OverflowTable> ROOT = new
   // ConcurrentHashMap<String, OverflowTable>();
   private Map<String, OverflowTable> ROOT =
@@ -237,11 +239,23 @@ public class NameNodeDummy {
     if (NameNodeDummy.DEBUG)
       System.out.println(str);
   }
-
+ private static AtomicBoolean isRun = new AtomicBoolean(false);
+ 
+ public static boolean isMovingRun() {
+   return isRun.get();
+ }
   public synchronized boolean moveNS(FSNamesystem fs, String path, String server,
       JspWriter out) throws IOException {
-    return this.moveNSBase(fs, path, server, out, false);
+    if (isRun.get()) {
+      System.err.println("Moving namespace is running..., cancel moving " + path);
+      return false;
+    }
+    isRun.getAndSet(true);
+    boolean isSuc = this.moveNSBase(fs, path, server, out, false);
+    isRun.getAndSet(false);
+    return isSuc;
   }
+  
   /**
    * Move namespace sub-tree to different name node.
    * 
@@ -300,11 +314,11 @@ public class NameNodeDummy {
     //logs(out, this.printNSInfo(subTree, 0, DEFAULT_LEVEL));
     boolean suc = false;
     try {
-      INodeClient client =
-          INodeClient.getInstance(server, NameNodeDummy.TCP_PORT,
-              NameNodeDummy.UDP_PORT);
-      // INodeClient client = new INodeClient(server,
-      // NameNodeDummy.TCP_PORT, NameNodeDummy.UDP_PORT);
+      //INodeClient client =
+        //  INodeClient.getInstance(server, NameNodeDummy.TCP_PORT,
+          //    NameNodeDummy.UDP_PORT);
+     INodeClient client = new INodeClient(server,
+       NameNodeDummy.TCP_PORT, NameNodeDummy.UDP_PORT);
       // Send sub-tree to another name node
        suc = client.sendINode(subTree, out, subTree.getParent().isRoot());
        System.out.println("(2)Client finished waiting server to response!");
@@ -317,8 +331,8 @@ public class NameNodeDummy {
        }
       if (suc) {
         isSuc = true;
-        System.out.println("Success! Clean source namenode and schedule block reports in background!");
-        new RemoveInmemoryNamespace(client, this, fs, subTree).start();
+        //System.out.println("Success! Clean source namenode and schedule block reports in background!");
+        //new RemoveInmemoryNamespace(client, this, fs, subTree).start();
       }
       // client.cleanup();
     } catch (Exception e) {
@@ -341,7 +355,14 @@ public class NameNodeDummy {
 
   public synchronized boolean moveNSAutomatically(String path, String server)
       throws IOException {
-    return this.moveNSBase(this.getFSNamesystem(), path, server, null,true);
+    if (isRun.get()) {
+      System.err.println("Moving namespace is running..., cancel moving " + path);
+      return false;
+    }
+    isRun.getAndSet(true);
+    boolean isSuc = this.moveNSBase(this.getFSNamesystem(), path, server, null,true);
+    isRun.getAndSet(false);
+    return isSuc;
   }
   public synchronized void moveNSOLD(String path, String server)
       throws IOException {
@@ -410,9 +431,14 @@ public class NameNodeDummy {
     if (list == null)
       return null;
     long[] ids = new long[list.size()];
-    for (int i = 0; i < ids.length; i++) {
-      ids[i] = list.get(i).longValue();
+    Iterator<Long> ite = list.iterator();
+    //for (int i = 0; i < ids.length; i++) {
+    int i = 0;
+    while (ite.hasNext()) {  
+      //ids[i] = list.get(i).longValue();
+      ids[i++] = ite.next();
     }
+    list.clear();
     return ids;
   }
 
@@ -1086,6 +1112,14 @@ public class NameNodeDummy {
     return findHostInPath(found.parent);
   }
   
+  
+  public ExternalStorage findValideChild(OverflowTableNode found) {
+    if (found == null) return null;
+    ExternalStorage es = found.getValue();
+    if (es != null) return es;
+    return findHostInPath(found.right);
+  }
+  
   public ExternalStorage[] getRootExternalStorages(String path) {
     if (!path.equals("/")) return null;
     if (ROOT.size() == 0) {
@@ -1094,9 +1128,7 @@ public class NameNodeDummy {
     List<ExternalStorage> list = new ArrayList<ExternalStorage>();
     Collection<OverflowTable> collection = ROOT.values();
     for (OverflowTable ot : collection) {
-      if (ot.getRoot().getValue() != null) {
-        list.add(ot.getRoot().getValue());
-      }
+      list.addAll(Arrays.asList(ot.getAllChildren(ot.getRoot())));
     }
     return (list.size() == 0 ? null : listToArray(list));
   }
@@ -1301,7 +1333,7 @@ public class NameNodeDummy {
         INodeClient.getInstance(sourceNN, NameNodeDummy.TCP_PORT,
             NameNodeDummy.UDP_PORT);
     try {
-      client.connect();
+      client.connect(INodeServer.WRITE_BUFFER_MB);
     } catch (IOException e) {
       e.printStackTrace();
     }

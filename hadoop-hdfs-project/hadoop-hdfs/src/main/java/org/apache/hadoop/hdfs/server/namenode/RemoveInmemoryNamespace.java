@@ -30,9 +30,16 @@ public class RemoveInmemoryNamespace extends Thread {
     Map<String, List<Long>> map;
     try {
       //For block report, remove for now. Have to fix soon.
-      map = nn.getBlockInfos(fs, inode);
-      nn.setBlockIds(map);
-      client.cleanup();
+      if (NameNodeDummy.PROCESSBLOCKREPORT) {
+        map = nn.getBlockInfos(fs, inode);
+        nn.setBlockIds(map);
+      }
+      if (client != null){
+        client.cleanup();
+        System.out.println("Clean up finished!");
+      } else {
+        System.out.println("Error happen, cleanup failed!");
+      }
     } catch (FileNotFoundException e1) {
       // TODO Auto-generated catch block
       e1.printStackTrace();
@@ -47,6 +54,7 @@ public class RemoveInmemoryNamespace extends Thread {
       System.err.println("Cannot run clean up!");
     } finally {
       GettingStarted.setRun(false);
+      client.close();
     }
   }
 

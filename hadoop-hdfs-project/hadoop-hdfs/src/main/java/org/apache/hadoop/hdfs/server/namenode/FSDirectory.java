@@ -1597,12 +1597,14 @@ public class FSDirectory implements Closeable {
     }
     //ExternalStorage[] es = NameNodeDummy.getNameNodeDummyInstance().getRootExternalStorages(srcs);
     //ExternalStorage[] es = NameNodeDummy.getNameNodeDummyInstance().findExternalNN(srcs);
-    
+    if (NameNodeDummy.DEBUG){
+      System.out.println("[FSDirectory] Get overflow table es " + (es == null ? "null" : es.length));
+    }
     if (es == null){
       es = new ExternalStorage[1];
       es[0] = NameNodeDummy.getNameNodeDummyInstance().findHostInPath(NameNodeDummy.getNameNodeDummyInstance().findNode(srcs));
     }
-      
+    
     //ExternalStorage[] ess = NameNodeDummy.getNameNodeDummyInstance().findExternalNN(srcs);
     if (es != null) {
       if (hfs == null) {

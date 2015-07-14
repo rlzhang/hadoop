@@ -2,7 +2,6 @@ package org.apache.hadoop.hdfs.server.namenode.dummy;
 
 import java.io.IOException;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -13,6 +12,7 @@ import org.apache.hadoop.hdfs.server.namenode.INodeDirectory;
 import org.apache.hadoop.hdfs.server.namenode.INodeExternalLink;
 import org.apache.hadoop.hdfs.server.namenode.NameNodeDummy;
 import org.apache.hadoop.hdfs.server.namenode.Quota;
+import org.apache.hadoop.hdfs.server.namenode.RemoveInmemoryNamespace;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 import org.apache.hadoop.hdfs.util.ReadOnlyList;
 import org.apache.hadoop.security.AccessControlException;
@@ -56,6 +56,7 @@ public class INodeClient implements CallBack{
     }
     if (client == null) {
       synchronized (obj) {
+        if (client == null)
         if (nioClients.get(server) == null) {
           nioClients.put(server, new INodeClient(server, tcpPort, udpPort));
         }
@@ -137,15 +138,18 @@ public class INodeClient implements CallBack{
   }
   **/
 
+  private Listener listener = null;
+  private int writeBuffer = -1;
   /**
    * Communication from name node to name node.
    * 
    * @throws IOException
    */
-  public void connect() throws IOException {
+  public void connect(int writeBuffer) throws IOException {
+   this.writeBuffer = writeBuffer;
     this.client =
-        new Client(INodeServer.WRITE_BUFFER, INodeServer.OBJECT_BUFFER);
-    client.addListener(new Listener() {
+        new Client(writeBuffer, INodeServer.OBJECT_BUFFER);
+    client.addListener(listener = new Listener() {
       public void received(Connection connection, Object object) {
         //System.out.println("Client received " + object.getClass().getName());
         if (object instanceof MoveNSResponse) {
@@ -188,11 +192,15 @@ public class INodeClient implements CallBack{
 
   public void close() {
     if (this.client != null) {
+      if (listener != null)
+        this.client.removeListener(listener);
       this.client.close();
       this.client = null;
     }
   }
 
+  // In case send failed, resend last object as well.
+  //private Object lastObject = null;
   /**
    * 
    * @param obj
@@ -200,34 +208,51 @@ public class INodeClient implements CallBack{
    * @return Size of sent data.
    * @throws Exception 
    */
-  public int sendTCP(Object obj, JspWriter out) throws Exception {
+  public synchronized int sendTCP(Object obj, JspWriter out) {
 
     int size = -1;
     try {
+      
+      if (!this.client.isConnected()) throw new Exception("Lost connection, try to reconnect...");
+      
       size = client.sendTCP(obj);
       //System.out.println(size + " vs " + MemoryCounter.estimate(obj));
       if (size == 0) throw new Exception("Send size should not be zero!");
-      if (!this.client.isConnected()) throw new Exception("Lost connection, try to reconnect...");
       //size = client.sendUDP(obj);
+      //lastObject = obj;
     } catch (Exception e) {
       //e.printStackTrace();
       System.err.println("ERROR!" + e.getMessage());
       if (obj instanceof org.apache.hadoop.hdfs.server.namenode.dummy.MapRequest) {
         System.err.println("[ERROR] obj = " + ((MapRequest) obj).getKey());
       }
-
-      try {
-        Thread.sleep(2000);
-        System.gc();
-      } catch (InterruptedException e1) {
-        e1.printStackTrace();
-      }
+      
       if (retry < MAX_RETRY) {
-        System.out.println("-----Retry now ..." + this.client.isConnected());
+        
         retry++;
-        if (this.client == null || !this.client.isConnected())
-          this.connect();
+        System.out.println(retry + "-----Retry now ..." + this.client == null ? "null" : this.client.isConnected());
+        
+        //if (this.client == null || !this.client.isConnected())
+          try {
+            this.close();
+            this.connect(writeBuffer);
+            System.gc();
+          } catch (IOException e2) {
+            e2.printStackTrace();
+          }
+        try {
+          Thread.sleep(1000);
+        } catch (InterruptedException e1) {
+          e1.printStackTrace();
+        }
+        // Resend last object, it might missed.
+        //if (lastObject != null)
+          //this.sendTCP(lastObject, out);
         size = this.sendTCP(obj, out);
+        if (size > 0) {
+          System.out.println(retry + "-----Retry successful!");
+          retry = 0;
+        }
         //Clear memory.
         //obj = null;
       } else {
@@ -236,9 +261,7 @@ public class INodeClient implements CallBack{
         //this.close();
         //this.connect();
       }
-    } finally {
-      obj = null;
-    }
+    } 
 
     if (NameNodeDummy.DEBUG)
       if (obj instanceof org.apache.hadoop.hdfs.server.namenode.dummy.MapRequest) {
@@ -256,6 +279,7 @@ public class INodeClient implements CallBack{
           + this.nnd.humanReadableByteCount(size));
     }
     retry = 0;
+    obj = null;
     return size;
   }
 
@@ -271,6 +295,7 @@ public class INodeClient implements CallBack{
    */
   public boolean sendINode(INode subTree, JspWriter out, boolean isParentRoot) {
     long start = System.currentTimeMillis();
+    //this.close();
     if (this.out == null)
       this.out = out;
     boolean ifSuccess = false;
@@ -288,10 +313,10 @@ public class INodeClient implements CallBack{
                   .getHostName());
 
       String src = INodeExternalLink.PREFIX + this.subTree.getLocalName();
-      INodeDirectory t = this.subTree.getParent();
+      //INodeDirectory t = this.subTree.getParent();
       boolean isLink = false;
-      if (t != null) {
-        INode l = t.getChild(src.getBytes(), Snapshot.CURRENT_STATE_ID);
+      if (parent != null) {
+        INode l = parent.getChild(src.getBytes(), Snapshot.CURRENT_STATE_ID);
         if (l != null && l.isExternalLink()) {
           if (NameNodeDummy.DEBUG)
             NameNodeDummy.debug("[INodeClient]:found existing ExternalLink "
@@ -361,8 +386,11 @@ public class INodeClient implements CallBack{
       listSize = size;
       request.setListSize(size);
 
+      int bufferSize = (int) (INodeServer.WRITE_BUFFER_MB * (size * INodeServer.factor));
+      bufferSize = bufferSize < INodeServer.WRITE_BUFFER_MB ? INodeServer.WRITE_BUFFER_MB: bufferSize;
+      System.out.println("Set max buffer size " + bufferSize);
       if (this.client == null || !this.client.isConnected())
-        this.connect();
+        this.connect(bufferSize);
       int response = this.sendTCP(request, out);
       if (NameNodeDummy.DEBUG)
         System.out.println("; list size is " + size);
@@ -437,9 +465,6 @@ public class INodeClient implements CallBack{
       }
       //For test only!
       e.printStackTrace();
-      this.subTree = null;
-      this.close();
-      nioClients.remove(this.server);
     } finally {
       // Reference
       //subTree.setParent(parent);
@@ -447,7 +472,20 @@ public class INodeClient implements CallBack{
        * Reset reference for INodeExternalLink, no need now, have handled
        */
       //NameNodeDummy.getNameNodeDummyInstance().recoverExternalLink();
+
+      
       ifSuccess = this.waitServerReceivedAllData();
+      if (ifSuccess) {
+        System.out.println("Success! Clean source namenode and schedule block reports in background!");
+        new RemoveInmemoryNamespace(this, nnd, nnd.getFSNamesystem(), subTree).start();
+      } else {
+        this.subTree = null;
+        nioClients.remove(this.server);
+        this.close();
+      }
+      
+      
+      //lastObject = null;
     }
 
     return ifSuccess;
@@ -481,8 +519,8 @@ public class INodeClient implements CallBack{
         //Tell server reset in memory map.
         ClientCommends cc = new ClientCommends();
         cc.setCommand(4);
-        if (client != null)
-          client.sendTCP(cc);
+        this.writeBuffer = INodeServer.WRITE_BUFFER_MB;
+        this.sendTCP(cc,null);
         break;
       }
       try {
@@ -578,11 +616,12 @@ public class INodeClient implements CallBack{
           this.subTree.getParent());
     }
 
-    // Delete namespace tree in memory.
-    NameNodeDummy.getNameNodeDummyInstance().deletePath(
-        this.subTree.getFullPathName());
+    
     // Clear memory
     if (this.subTree != null){
+   // Delete namespace tree in memory.
+      NameNodeDummy.getNameNodeDummyInstance().deletePath(
+          this.subTree.getFullPathName());
       // This subTree must be a directory
       if (this.subTree.isDirectory())
         this.subTree.asDirectory().clear();

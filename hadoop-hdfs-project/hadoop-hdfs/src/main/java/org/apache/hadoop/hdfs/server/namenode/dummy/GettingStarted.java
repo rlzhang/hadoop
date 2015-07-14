@@ -12,7 +12,6 @@ import java.util.Timer;
 import java.util.TimerTask;
 
 import org.apache.hadoop.hdfs.server.namenode.INode;
-import org.apache.hadoop.hdfs.server.namenode.INodeDirectory;
 import org.apache.hadoop.hdfs.server.namenode.NameNode;
 import org.apache.hadoop.hdfs.server.namenode.NameNodeDummy;
 import org.apache.hadoop.hdfs.server.namenode.dummy.partition.BinaryPartition;
@@ -25,6 +24,9 @@ public class GettingStarted extends Thread {
 
   final static int MB = 1024 * 1024;
   final static int GB = MB * 1024;
+
+  //Minimal free memory to start moving... , MB.
+  final static long MIN_MEMEORY = (long) (INodeServer.WRITE_BUFFER_MB * 1024);
   long freeMem = 0;
   Map<String, NamenodeTable> memoryMap;
 
@@ -39,9 +41,11 @@ public class GettingStarted extends Thread {
   }
 
   static boolean isRun = false;
+
   public synchronized static void setRun(boolean run) {
     GettingStarted.isRun = run;
   }
+
   public GettingStarted(NameNode nn) {
     init();
     this.nn = nn;
@@ -69,13 +73,15 @@ public class GettingStarted extends Thread {
     long total = Runtime.getRuntime().maxMemory() / MB;
     MemoryMXBean mem = ManagementFactory.getMemoryMXBean();
     MemoryUsage heap = mem.getHeapMemoryUsage();
-    long free = (heap.getMax()/MB) - (heap.getUsed()/MB);
-    
+    long free = (heap.getMax() / MB) - (heap.getUsed() / MB);
+
     if (freeMem != free) {
       //System.out.println("Report free memory: " + getFreeMemory() / MB + "; total memory: " + total);
-      System.out.println("Report used memory: " + heap.getUsed()/MB + " MB; max memory: " + heap.getMax()/GB + "GB, free memory is " + free + " MB.");
+      System.out.println("Report used memory: " + heap.getUsed() / MB
+          + " MB; max memory: " + heap.getMax() / GB + "GB, free memory is "
+          + free + " MB.");
       n.setFreeCapacity(free);
-      n.setTotalCapacity(heap.getMax()/MB);
+      n.setTotalCapacity(heap.getMax() / MB);
       memoryMap.put(nn.getNameNodeAddress().getHostName(), n);
       freeMem = free;
     }
@@ -83,7 +89,7 @@ public class GettingStarted extends Thread {
   }
 
   public void run() {
-    while(nn.getRpcServer() == null) {
+    while (nn.getRpcServer() == null) {
       // Wait namenode start
       try {
         Thread.sleep(100);
@@ -106,8 +112,7 @@ public class GettingStarted extends Thread {
           + entry.getValue());
     }
   }
-  
-  
+
 }
 
 /**
@@ -116,7 +121,7 @@ public class GettingStarted extends Thread {
  *
  */
 class ReportAndMoveNSTask extends TimerTask {
-  
+
   GettingStarted g;
   BinaryPartition bp = new BinaryPartition();
   GettingStartedClient client = new GettingStartedClient();
@@ -125,19 +130,31 @@ class ReportAndMoveNSTask extends TimerTask {
     this.g = g;
   }
 
-
   public void run() {
     g.reportMemory();
     g.printMap();
     NamenodeTable nt = GettingStarted.getThisNamenode();
+    if (NameNodeDummy.isMovingRun()) {
+      System.err
+      .println("Another process of namespace moving is run, cancel this one! Free memory is "
+          + nt.getFreeCapacity());
+    }
     if (!GettingStarted.isRun && bp.ifStart(nt)) {
       GettingStarted.isRun = true;
-      System.out.println("Low memory, start to move namespace. Free memory is " + nt.getFreeCapacity());
+      if (nt.getFreeCapacity() < GettingStarted.MIN_MEMEORY)
+        System.err
+            .println("Cannot start to move namespace, you have too small memory left. Free memory is "
+                + nt.getFreeCapacity());
+      else
+        System.err
+            .println("Low memory, start to move namespace. Free memory is "
+                + nt.getFreeCapacity());
       // Pre-decision
       boolean success = this.preDecision();
       if (!success)
         success = this.divideOriginalTree();
-      if (!success) GettingStarted.isRun = false;
+      if (!success)
+        GettingStarted.isRun = false;
       //isRun = false;
     }
     //NameNodeDummy.debug("Time's up! " + new Date().toLocaleString());
@@ -148,15 +165,17 @@ class ReportAndMoveNSTask extends TimerTask {
     List<ToMove> moveOut =
         bp.preDecision(client.getMap(), NameNodeDummy
             .getNameNodeDummyInstance().getRoot());
-    if (moveOut == null) return returnValue;
+    if (moveOut == null)
+      return returnValue;
     for (int i = 0; i < moveOut.size(); i++) {
       ToMove to = moveOut.get(i);
       if (to.getDir() != null && to.getTargetNN() != null) {
         try {
-          returnValue = NameNodeDummy.getNameNodeDummyInstance().moveNSAutomatically(
-              to.getDir().getFullPathName(),
-              to.getTargetNN().getNamenodeServer());
-         // returnValue = true;
+          returnValue =
+              NameNodeDummy.getNameNodeDummyInstance().moveNSAutomatically(
+                  to.getDir().getFullPathName(),
+                  to.getTargetNN().getNamenodeServer());
+          // returnValue = true;
         } catch (IOException e) {
           e.printStackTrace();
           System.err.println("Failed to move metadata in pre-decision "
@@ -176,15 +195,17 @@ class ReportAndMoveNSTask extends TimerTask {
         bp.divideOriginalTree(client.getMap(), NameNodeDummy
             .getNameNodeDummyInstance().getRoot(), NameNodeDummy
             .getNameNodeDummyInstance().getNamenodeAddress().getHostName());
-    
+
     if (tm == null) {
-      System.err.println("Cannot find a way to divide namespace tree, try to increase MAX_LEVEL instead !");
+      System.err
+          .println("Cannot find a way to divide namespace tree, try to increase MAX_LEVEL instead !");
       return isSuc;
     }
     if (tm.getType() == 1) {
       try {
-        isSuc = NameNodeDummy.getNameNodeDummyInstance()
-            .moveNSAutomatically(tm.getDir().getFullPathName(),
+        isSuc =
+            NameNodeDummy.getNameNodeDummyInstance().moveNSAutomatically(
+                tm.getDir().getFullPathName(),
                 tm.getTargetNN().getNamenodeServer());
       } catch (IOException e) {
         e.printStackTrace();
@@ -198,8 +219,9 @@ class ReportAndMoveNSTask extends TimerTask {
       while (ite.hasNext()) {
         INode dir = ite.next();
         try {
-          isSuc = NameNodeDummy.getNameNodeDummyInstance().moveNSAutomatically(
-              dir.getFullPathName(), tm.getTargetNN().getNamenodeServer());
+          isSuc =
+              NameNodeDummy.getNameNodeDummyInstance().moveNSAutomatically(
+                  dir.getFullPathName(), tm.getTargetNN().getNamenodeServer());
         } catch (IOException e) {
           e.printStackTrace();
         }

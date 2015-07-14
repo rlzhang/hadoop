@@ -266,7 +266,7 @@ public final class FSImageFormatPBINode {
     }
 
     private void addToParent(INodeDirectory parent, INode child) {
-      LOG.info(">>>addToParent:"+parent+":"+child);
+      //LOG.info(">>>addToParent:"+parent+":"+child);
       if (parent == dir.rootDir && FSDirectory.isReservedName(child)) {
         throw new HadoopIllegalArgumentException("File name \""
             + child.getLocalName() + "\" is reserved. Please "
