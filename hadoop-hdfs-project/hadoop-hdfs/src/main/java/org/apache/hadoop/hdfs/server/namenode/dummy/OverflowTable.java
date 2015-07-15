@@ -560,6 +560,7 @@ public class OverflowTable {
           System.out.println("This barely happen, but seems overflow table has be updated! " + path);
           cacheEs.setTargetNNServer(es[i].getTargetNNServer());
         }
+        if (NameNodeDummy.DEBUG)
         System.out.println(es[i].getSourceNNServer() + ", overflow table existing, cancel insert: " + path);
         continue;
       } else {

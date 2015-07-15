@@ -935,6 +935,14 @@ public class NameNodeDummy {
     return returnValue;
   }
   
+  
+  public void buildOrAddBSTServer(ExternalStorage[] es) {
+    if (es == null) return;
+    for(int i = 0; i < es.length; i++){
+      this.buildOrAddBST(es, ROOT);
+    }
+  }
+  
   public OverflowTable buildOrAddBST(ExternalStorage[] es) {
     return this.buildOrAddBST(es, ROOT);
   }

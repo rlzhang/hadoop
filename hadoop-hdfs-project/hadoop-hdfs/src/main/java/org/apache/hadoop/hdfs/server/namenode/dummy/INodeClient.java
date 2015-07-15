@@ -46,13 +46,14 @@ public class INodeClient implements CallBack{
   // Retry times for BufferOverflowException.
   private int MAX_RETRY = 6;
   private int retry = 0;
-
+  
   public static INodeClient getInstance(String server, int tcpPort, int udpPort) {
     INodeClient client = nioClients.get(server);
     if (client != null
         && (client.client == null || !client.client.isConnected())) {
       nioClients.remove(server);
-      client = null;
+      if(client != null) client.close();
+      //client = null;
     }
     if (client == null) {
       synchronized (obj) {
@@ -66,7 +67,7 @@ public class INodeClient implements CallBack{
     return nioClients.get(server);
   }
 
-  public INodeClient(String server, int tcpPort, int udpPort) {
+  private INodeClient(String server, int tcpPort, int udpPort) {
     this.server = server;
     this.tcpPort = tcpPort;
     this.udpPort = udpPort;
@@ -147,6 +148,7 @@ public class INodeClient implements CallBack{
    */
   public void connect(int writeBuffer) throws IOException {
    this.writeBuffer = writeBuffer;
+   if (this.client != null) this.client.close();
     this.client =
         new Client(writeBuffer, INodeServer.OBJECT_BUFFER);
     client.addListener(listener = new Listener() {
@@ -196,6 +198,7 @@ public class INodeClient implements CallBack{
         this.client.removeListener(listener);
       this.client.close();
       this.client = null;
+      this.link = null;
       //nioClients.remove(this.server);
     }
   }
@@ -389,7 +392,7 @@ public class INodeClient implements CallBack{
       int bufferSize = (int) (INodeServer.WRITE_BUFFER_MB * (size * INodeServer.factor));
       bufferSize = bufferSize < INodeServer.WRITE_BUFFER_MB ? INodeServer.WRITE_BUFFER_MB: bufferSize;
       System.out.println("Set max buffer size " + bufferSize);
-      if (this.client == null || !this.client.isConnected())
+      if (this.client == null || !this.client.isConnected() || bufferSize > writeBuffer)
         this.connect(bufferSize);
       int response = this.sendTCP(request, out);
       if (NameNodeDummy.DEBUG)
@@ -480,7 +483,7 @@ public class INodeClient implements CallBack{
         new RemoveInmemoryNamespace(this, nnd, nnd.getFSNamesystem(), subTree).start();
       } else {
         this.subTree = null;
-        this.close();
+        //this.close();
       }
       
       
@@ -609,8 +612,10 @@ public class INodeClient implements CallBack{
           + this.link
           + ";es="
           + this.link.getEsMap().length);
-      NameNodeDummy.getNameNodeDummyInstance().buildOrAddBST(
-          this.link.getEsMap());
+      //NameNodeDummy.getNameNodeDummyInstance().buildOrAddBST(
+        //  this.link.getEsMap());
+          NameNodeDummy.getNameNodeDummyInstance().buildOrAddBSTServer(
+              this.link.getEsMap());
       NameNodeDummy.getNameNodeDummyInstance().addExternalNode(this.link,
           this.subTree.getParent());
     }

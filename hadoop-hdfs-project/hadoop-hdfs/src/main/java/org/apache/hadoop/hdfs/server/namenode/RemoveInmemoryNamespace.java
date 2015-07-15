@@ -54,7 +54,7 @@ public class RemoveInmemoryNamespace extends Thread {
       System.err.println("Cannot run clean up!");
     } finally {
       GettingStarted.setRun(false);
-      client.close();
+      //client.close();
     }
   }
 

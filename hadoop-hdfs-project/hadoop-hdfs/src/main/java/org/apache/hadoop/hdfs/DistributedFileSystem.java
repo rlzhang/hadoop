@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
@@ -897,7 +898,8 @@ public class DistributedFileSystem extends FileSystem {
               + partialListing[i].getEs().length);
         if (partialListing[i].getEs() != null
             && partialListing[i].getEs().length > 0) {
-          nn.buildOrAddBSTClient(partialListing[i].getEs());
+          //nn.buildOrAddBSTClient(partialListing[i].getEs());
+          nn.buildOrAddBSTAllClient(partialListing[i].getEs());
           hasOverflowTable = true;
         }
       }
@@ -1382,6 +1384,7 @@ public class DistributedFileSystem extends FileSystem {
   // Cache the first visited namenode of all overflow table data.
   private static boolean isCached = false;
 
+  //private static Map<DFSClient, NameNodeDummy> overflowCaches = new java.util.concurrent.ConcurrentHashMap<DFSClient, NameNodeDummy>();
   private synchronized static void getOverflowTable(String path, DFSClient dfs, NameNodeDummy nn)
       throws IOException {
     if (!isCached) {
