@@ -42,6 +42,8 @@ public class BinaryPartition {
    */
   //private final static double TARGETMOVE = 0.10;
 
+  //Default half of heap memory size
+  private final static double MAX_MOVE_SPACE = 0.5;
   /**
    * Give each target name node space to grow after moving namespace
    */
@@ -251,7 +253,7 @@ public class BinaryPartition {
     //System.out.println("[ifGoodOnSourceNN]  Cannot large than " + nt.getTotalCapacity()/2 + ", size to move out " + sizeToMove);
    
     return (after > nt.getTotalCapacity() * freeSpace && sizeToMove < (nt
-        .getTotalCapacity() / 2)) ? true : false;
+        .getTotalCapacity() * MAX_MOVE_SPACE)) ? true : false;
   }
 
   /**

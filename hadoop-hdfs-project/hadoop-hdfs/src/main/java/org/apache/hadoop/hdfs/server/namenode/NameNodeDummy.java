@@ -313,11 +313,12 @@ public class NameNodeDummy {
     //logs(out, " Display namespace (maximum 10 levels) :");
     //logs(out, this.printNSInfo(subTree, 0, DEFAULT_LEVEL));
     boolean suc = false;
+    INodeClient client = null;
     try {
       //INodeClient client =
         //  INodeClient.getInstance(server, NameNodeDummy.TCP_PORT,
           //    NameNodeDummy.UDP_PORT);
-     INodeClient client = new INodeClient(server,
+       client = new INodeClient(server,
        NameNodeDummy.TCP_PORT, NameNodeDummy.UDP_PORT);
       // Send sub-tree to another name node
        suc = client.sendINode(subTree, out, subTree.getParent().isRoot());
@@ -345,6 +346,7 @@ public class NameNodeDummy {
             + e.getMessage());
       }
     }
+    
     if (!auto)
     logs(out, "spend " + (System.currentTimeMillis() - start)
         + " milliseconds!");
@@ -782,8 +784,8 @@ public class NameNodeDummy {
   /**
    * Temporary store INodeExternalLink
    */
-  private Map<INode, INodeExternalLink> tempMap =
-      new HashMap<INode, INodeExternalLink>();
+  //private Map<INode, INodeExternalLink> tempMap =
+    //  new HashMap<INode, INodeExternalLink>();
 
   /**
    * Add the INodeExternalLink to top node
@@ -805,7 +807,7 @@ public class NameNodeDummy {
       link.setEsMap(temp);
       if (parent != null)
         parent.asDirectory().removeChild(child);
-      tempMap.put(parent, existingOne);
+      //tempMap.put(parent, existingOne);
       return;
     }
     if (!child.isDirectory())
@@ -825,18 +827,18 @@ public class NameNodeDummy {
   /**
    * Try to recover after divorce INodeExternalLink
    */
-  public void recoverExternalLink() {
-    if (tempMap != null) {
-      Iterator<Entry<INode, INodeExternalLink>> iter =
-          tempMap.entrySet().iterator();
-      while (iter.hasNext()) {
-        Entry<INode, INodeExternalLink> entry = iter.next();
-        INode parent = entry.getKey();
-        INodeExternalLink iel = entry.getValue();
-        parent.asDirectory().addChild(iel);
-      }
-    }
-  }
+//  private void recoverExternalLink() {
+//    if (tempMap != null) {
+//      Iterator<Entry<INode, INodeExternalLink>> iter =
+//          tempMap.entrySet().iterator();
+//      while (iter.hasNext()) {
+//        Entry<INode, INodeExternalLink> entry = iter.next();
+//        INode parent = entry.getKey();
+//        INodeExternalLink iel = entry.getValue();
+//        parent.asDirectory().addChild(iel);
+//      }
+//    }
+//  }
 
   /**
    * Remove INode and all reference.

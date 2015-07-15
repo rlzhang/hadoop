@@ -196,6 +196,7 @@ public class INodeClient implements CallBack{
         this.client.removeListener(listener);
       this.client.close();
       this.client = null;
+      //nioClients.remove(this.server);
     }
   }
 
@@ -279,7 +280,6 @@ public class INodeClient implements CallBack{
           + this.nnd.humanReadableByteCount(size));
     }
     retry = 0;
-    obj = null;
     return size;
   }
 
@@ -480,7 +480,6 @@ public class INodeClient implements CallBack{
         new RemoveInmemoryNamespace(this, nnd, nnd.getFSNamesystem(), subTree).start();
       } else {
         this.subTree = null;
-        nioClients.remove(this.server);
         this.close();
       }
       

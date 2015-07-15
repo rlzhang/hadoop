@@ -416,18 +416,18 @@ public class INodeServer extends Thread {
           }
 
           /** Logs only. **/
-          if (parent != null) {
-            System.out.println("Checking files under "
-                + parent.getFullPathName());
-            ReadOnlyList<INode> roList =
-                parent.asDirectory().getChildrenList(Snapshot.CURRENT_STATE_ID);
-            Iterator<INode> ite = roList.iterator();
-            while (ite.hasNext()) {
-              //for (int i = 0; i < roList.size(); i++) {
-              System.out.println("Getting files "
-                  + ite.next().getFullPathName());
-            }
-          }
+//          if (parent != null) {
+//            System.out.println("Checking files under "
+//                + parent.getFullPathName());
+//            ReadOnlyList<INode> roList =
+//                parent.asDirectory().getChildrenList(Snapshot.CURRENT_STATE_ID);
+//            Iterator<INode> ite = roList.iterator();
+//            while (ite.hasNext()) {
+//              //for (int i = 0; i < roList.size(); i++) {
+//              System.out.println("Getting files "
+//                  + ite.next().getFullPathName());
+//            }
+//          }
 
         } else if (request.getOperation() == 1) {
           parent = request.getParent();

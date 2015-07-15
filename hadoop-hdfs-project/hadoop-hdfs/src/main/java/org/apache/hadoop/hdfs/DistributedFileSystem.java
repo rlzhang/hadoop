@@ -936,13 +936,19 @@ public class DistributedFileSystem extends FileSystem {
   private FileStatus[] listStatusInternal(Path p) throws IOException {
     String src = getPathName(p);
 
+
+    /* Have to handle three scenarios: 
+    * 1. Files under src totally on target NN
+    * 2. Files under src totally on source NN
+    * 3. Files under src on both target and source NN
+    */
     //DirectoryListing thisListing =
       //  dfs.listPaths(src, HdfsFileStatus.EMPTY_NAME);
     DFSClientProxy proxy = this.getRightDFSClient(src);
     DirectoryListing thisListing =
         proxy.client.listPaths(proxy.path, HdfsFileStatus.EMPTY_NAME);
     if (NameNodeDummy.useDistributedNN) {
-      //Here should use original path, don't add namespace path.
+      //Here should use original path, don't add target NN namespace path.
       thisListing = this.updateStatusInternal(thisListing, src);
     }
 
