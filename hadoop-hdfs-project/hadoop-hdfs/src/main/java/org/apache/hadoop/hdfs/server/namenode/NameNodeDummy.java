@@ -315,11 +315,11 @@ public class NameNodeDummy {
     boolean suc = false;
     INodeClient client = null;
     try {
-      //INodeClient client =
-        //  INodeClient.getInstance(server, NameNodeDummy.TCP_PORT,
-          //    NameNodeDummy.UDP_PORT);
-       client = new INodeClient(server,
-       NameNodeDummy.TCP_PORT, NameNodeDummy.UDP_PORT);
+      client =
+          INodeClient.getInstance(server, NameNodeDummy.TCP_PORT,
+              NameNodeDummy.UDP_PORT);
+       //client = new INodeClient(server,
+       //NameNodeDummy.TCP_PORT, NameNodeDummy.UDP_PORT);
       // Send sub-tree to another name node
        suc = client.sendINode(subTree, out, subTree.getParent().isRoot());
        System.out.println("(2)Client finished waiting server to response!");
