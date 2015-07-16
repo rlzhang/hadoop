@@ -47,6 +47,9 @@ public class OverflowTable {
     return getFirstNotNullNode(o.right);
   }
 
+  //Record last found path in findNode method.
+  private String lastFoundPath = null;
+  private OverflowTableNode lastFoundNode = null;
   /**
    * Always return an insert point, only if path belong to the source name node.
    * 
@@ -79,14 +82,37 @@ public class OverflowTable {
         logs("[findNode] Path not existing!!!" + path);
       return null;
     }
+    OverflowTableNode start = root;
+    //Use last recorded path to short query depth of binary tree
+    if (recordLastFound) {
+      if (lastFoundPath != null && path.startsWith(lastFoundPath)) {
+        p = lastFoundPath;
+        start = lastFoundNode;
+        //System.out.println(path + ": short the depth, found last matched path is " + p);
+      }
+    }
+    
     /**
      * If root matched, almost guarantee return an insert point.
      */
     String remain = path.substring(p.length(), path.length());
-
-    return findNodeInt(root, remain, createIfNothere, alwaysReturnParent);
+    //System.out.println("Remain is " + remain);
+    OverflowTableNode o = findNodeInt(start, remain, createIfNothere, alwaysReturnParent);
+    if (recordLastFound) {
+      if (o != null && (o.key != null || o.parent.key != null)) {
+        //System.out.println(path + " : " + o.key + ( o.parent == null ? "" : o.parent.key));
+        lastFoundPath = (o.key == null ? this.getFullPath(o.parent) : this.getFullPath(o));
+        lastFoundNode = (o.key == null ? o.parent : o);
+        System.out.println(path + ": the last found path is " + lastFoundPath);
+      }
+    }
+    
+    //System.out.println(path + ": the last found path is " + lastFoundPath);
+    return o;
   }
 
+  //Find method optimization. Can make insert and find 3 times faster.
+  private final static boolean recordLastFound = false;
   /**
    * When do insert, create the dummy node first.
    * @param cur
@@ -238,6 +264,7 @@ public class OverflowTable {
         //if (path.equals(cur.right.key) || (c = this.getFirstCommonString(cur.right.key, path)) != null
         //	&& path.length() < cur.right.key.length()) {
         //logs("[OverflowTable] findNodeInt: Found parent to return now, node is " + cur.right.key);
+        // How to deal if parent is NULL as well?
         return cur.key == null ? cur.parent : cur;
 
         //ifCut = false;
@@ -286,11 +313,22 @@ public class OverflowTable {
     if (!isSame) {
       // Should return parent?
       if (NameNodeDummy.DEBUG)
-        logs("[OverflowTable] findNodeInt: Not match, recursively find path "
+        System.out.println("[OverflowTable] findNodeInt: Not match, recursively find path "
             + path);
 
-      return findNodeInt(cur.left, path, createIfNothere, alwaysReturnParent);
-
+      //return findNodeInt(cur.left, path, createIfNothere, alwaysReturnParent);
+      //This change make it three times faster.
+     // if (recordLastFound) {
+      if (this.findPathCount(path) == 1) {
+        //If this is the last path, make a quick search.
+        return findNodeInt(findLeftNodeInt(cur.left, path), path, createIfNothere, alwaysReturnParent);
+      } else {
+        return findNodeInt(cur.left, path, createIfNothere, alwaysReturnParent);
+      }
+//      } else {
+//        return findNodeInt(cur.left, path, createIfNothere, alwaysReturnParent);
+//      }
+      
     } else {
       if (NameNodeDummy.DEBUG)
         logs("[OverflowTable] findNodeInt: Path matched! Matched path is " + p
@@ -570,7 +608,7 @@ public class OverflowTable {
       if (NameNodeDummy.DEBUG)
         System.out.println("Full path is " + path);
       OverflowTableNode o;
-      if ((o = OverflowMap.getFromMap(path)) != null) return o;
+      //if ((o = OverflowMap.getFromMap(path)) != null) return o;
 
       // testSplitPath(path);
       if (ifSplit) {
@@ -588,8 +626,8 @@ public class OverflowTable {
       } else {
         o = this.insert(path, es[i]);
       }
-      if (o != null)
-        OverflowMap.addToMap(path, o);
+      //if (o != null)
+        //OverflowMap.addToMap(path, o);
       if (NameNodeDummy.DEBUG)
         System.out.println("Full path is " + (o != null ? o.key : null));
     }

@@ -94,6 +94,9 @@ public class NameNodeDummy {
    * For client use, store path => namenode address
    * Fix size is 1000.
    */
+  
+  public static Map<String,OverflowTableNode> findCache = java.util.Collections.synchronizedMap(new LRUMap(1000));
+  
   private static Map<String,ExternalStorage> allPathCache = java.util.Collections.synchronizedMap(new LRUMap(1000));
   //private static LRUMap lru = new LRUMap(10);
   // path => ExternalStorage mapping. this path is exactly same as in ExternalStorage.
@@ -963,7 +966,7 @@ public class NameNodeDummy {
    * @return
    */
   public OverflowTable buildOrAddBST(ExternalStorage[] es, Map<String, OverflowTable> root) {
-    long start = System.currentTimeMillis();
+    //long start = System.currentTimeMillis();
     String key = OverflowTable.getNaturalRootFromFullPath(es[0].getPath());
     if (!this.verifyOverflowTable(es, key)) {
       System.err
@@ -1119,6 +1122,7 @@ public class NameNodeDummy {
     if (found == null) return null;
     ExternalStorage es = found.getValue();
     if (es != null) return es;
+    //System.out.println("P: " + found.parent.key);
     return findHostInPath(found.parent);
   }
   
@@ -1378,10 +1382,8 @@ public class NameNodeDummy {
       System.out.println(src + " = src ;[setQuota] nsQuota = " + nsQuota);
       getFSNamesystem().setQuota(src, nsQuota, dsQuota);
     } catch (UnresolvedLinkException e) {
-      // TODO Auto-generated catch block
       e.printStackTrace();
     } catch (IOException e) {
-      // TODO Auto-generated catch block
       e.printStackTrace();
     }
   }
