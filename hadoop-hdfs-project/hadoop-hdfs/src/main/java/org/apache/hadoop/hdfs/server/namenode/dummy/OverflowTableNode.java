@@ -9,11 +9,17 @@ public class OverflowTableNode {
 
   public OverflowTableNode parent;
   public OverflowTableNode left, right; // children
+  private  RedBlackBST rb = null;
 
+  private boolean isRedBlackNode = false;
+  
   public OverflowTableNode(String path) {
     this.key = path;
   }
-
+  public OverflowTableNode(String path, ExternalStorage es, OverflowTableNode parent, boolean isRedBlackNode) {
+    this(path, es, parent);
+    this.isRedBlackNode = isRedBlackNode;  
+  }
   public OverflowTableNode(String path, ExternalStorage es, OverflowTableNode parent) { // constructor
     if (NameNodeDummy.DEBUG)
       if (this.key == null || "".equals(key.trim())) {
@@ -24,6 +30,9 @@ public class OverflowTableNode {
     this.key = path;
     this.value = es;
     this.parent = parent;
+    if (path == null) {
+      this.rb = new RedBlackBST();
+    }
   }
 
   public ExternalStorage getValue() {
@@ -35,5 +44,17 @@ public class OverflowTableNode {
   }
   public void setParent(OverflowTableNode parent) {
     this.parent = parent;
+  }
+
+  public RedBlackBST getRb() {
+    return rb;
+  }
+
+  public boolean isRedBlackNode() {
+    return isRedBlackNode;
+  }
+
+  public void setRedBlackNode(boolean isRedBlackNode) {
+    this.isRedBlackNode = isRedBlackNode;
   }
 }
