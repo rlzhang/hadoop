@@ -164,7 +164,7 @@ public class OverflowTable {
   private boolean createRedBlackTree(OverflowTableNode cur, String path, ExternalStorage es) {
     //Is parent a Null node.
     boolean isRedBlack = false;
-    if (cur.parent != null && cur.parent.key == null) {
+    if (this.findPathCount(path) == 1 && cur.parent != null && cur.parent.key == null) {
       RedBlackBST rb = cur.parent.getRb();
       rb.put(path, es);
       //System.out.println(path + "[:]" + cur.key);
