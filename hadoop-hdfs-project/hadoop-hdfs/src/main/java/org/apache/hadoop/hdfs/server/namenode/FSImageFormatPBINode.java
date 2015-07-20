@@ -383,7 +383,7 @@ public final class FSImageFormatPBINode {
         	externalStorages[i] = new ExternalStorage(t.getParentId(),t.getId(),t.getTargetNNServer(),t.getTargetNNPId(),t.getPath(),t.getSourceNNServer());
         	System.out.println("[read fsimage]loadINodeExternalLink:ExternalStorage:"+externalStorages[i].toString());
         }
-        NameNodeDummy.getNameNodeDummyInstance().buildOrAddBST(externalStorages);
+        NameNodeDummy.getNameNodeDummyInstance().buildOrAddBST(externalStorages, false);
         final PermissionStatus permissions = loadPermission(s.getPermission(),
             parent.getLoaderContext().getStringTable());
         INodeExternalLink iel = INodeExternalLink.getInstanceFromExisting(e.getId(), e.getName().toByteArray(), permissions, s.getModificationTime(), s.getAccessTime(), externalStorages);

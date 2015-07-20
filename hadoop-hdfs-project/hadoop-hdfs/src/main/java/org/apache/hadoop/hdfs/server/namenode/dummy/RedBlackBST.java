@@ -6,9 +6,10 @@ import java.util.Queue;
 
 public class RedBlackBST {
 
-    private static final boolean RED   = true;
-    private static final boolean BLACK = false;
-
+    private final boolean RED   = true;
+    private final boolean BLACK = false;
+    private int level = -1;
+    
     private Node<String> root;     // root of the BST
 
     public Node<String> getRoot() {
@@ -533,10 +534,18 @@ public class RedBlackBST {
           //bst.insert(path);
           st.put(path, null);
         }
-        PrettyPrintBST2.prettyPrintTree(st.root);
-        System.out.println(PrettyPrintBST2.sb.toString());
+        //PrettyPrintBST2.prettyPrintTree(st.root);
+        //System.out.println(PrettyPrintBST2.sb.toString());
         //for (String s : st.keys())
           //  StdOut.println(s + " " + st.get(s));
        // StdOut.println();
     }
+
+  public int getLevel() {
+    return level;
+  }
+
+  public void setLevel(int level) {
+    this.level = level;
+  }
 }

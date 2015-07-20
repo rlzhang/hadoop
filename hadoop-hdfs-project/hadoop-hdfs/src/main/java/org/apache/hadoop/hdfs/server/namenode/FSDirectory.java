@@ -1542,7 +1542,7 @@ public class FSDirectory implements Closeable {
    */
   private ExternalStorage[] addExternalNN(INode i,String path){
 	  //if(i == null){
-		  return NameNodeDummy.getNameNodeDummyInstance().findExternalNN(path);
+		  return NameNodeDummy.getNameNodeDummyInstance().findExternalNNServer(path);
 	  //}
 	  //return null;
   }
@@ -1593,7 +1593,7 @@ public class FSDirectory implements Closeable {
     if (NameNodeDummy.useCache){
       es = NameNodeDummy.getNameNodeDummyInstance().getRootExternalStorages(srcs);
     } else {
-      es = NameNodeDummy.getNameNodeDummyInstance().findExternalNN(srcs);
+      es = NameNodeDummy.getNameNodeDummyInstance().findExternalNNServer(srcs);
     }
     //ExternalStorage[] es = NameNodeDummy.getNameNodeDummyInstance().getRootExternalStorages(srcs);
     //ExternalStorage[] es = NameNodeDummy.getNameNodeDummyInstance().findExternalNN(srcs);
@@ -1602,7 +1602,7 @@ public class FSDirectory implements Closeable {
     }
     if (es == null){
       es = new ExternalStorage[1];
-      es[0] = NameNodeDummy.getNameNodeDummyInstance().findHostInPath(NameNodeDummy.getNameNodeDummyInstance().findNode(srcs));
+      es[0] = NameNodeDummy.getNameNodeDummyInstance().findHostInPath(NameNodeDummy.getNameNodeDummyInstance().findNode(srcs, false));
     }
     
     //ExternalStorage[] ess = NameNodeDummy.getNameNodeDummyInstance().findExternalNN(srcs);

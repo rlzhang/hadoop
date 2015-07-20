@@ -217,7 +217,7 @@ public class INodeServer extends Thread {
                   + srcs[i] + "; from " + es.getTargetNNServer() + " to "
                   + request.getNewTargetNN());
             NameNodeDummy.getNameNodeDummyInstance().removeExternalNN(
-                es.getPath());
+                es.getPath(), false);
             continue;
           }
 

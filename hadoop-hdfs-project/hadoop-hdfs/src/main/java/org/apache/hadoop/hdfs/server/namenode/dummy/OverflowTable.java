@@ -3,6 +3,7 @@ package org.apache.hadoop.hdfs.server.namenode.dummy;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.hadoop.hdfs.server.namenode.NameNodeDummy;
 
@@ -49,11 +50,14 @@ public class OverflowTable {
   //Record last found path in findNode method.
   private String lastFoundPath = null;
   private OverflowTableNode lastFoundNode = null;
-
+  public OverflowTableNode findNodeClient(String path, boolean createIfNothere,
+      boolean alwaysReturnParent) {
+    return this.findNode(path, createIfNothere, alwaysReturnParent,null, true);
+  }
   
   public OverflowTableNode findNode(String path, boolean createIfNothere,
-      boolean alwaysReturnParent) {
-    return this.findNode(path, createIfNothere, alwaysReturnParent,null);
+      boolean alwaysReturnParent, boolean isClient) {
+    return this.findNode(path, createIfNothere, alwaysReturnParent,null, isClient);
   }
   /**
    * Always return an insert point, only if path belong to the source name node.
@@ -62,7 +66,7 @@ public class OverflowTable {
    * @return
    */
   public OverflowTableNode findNode(String path, boolean createIfNothere,
-      boolean alwaysReturnParent, ExternalStorage es) {
+      boolean alwaysReturnParent, ExternalStorage es, boolean isClient) {
     if (NameNodeDummy.DEBUG)
       logs("[OverflowTable] findNode: Try to find ----------" + path + " from "
           + root.key);
@@ -103,7 +107,7 @@ public class OverflowTable {
     String remain = path.substring(p.length(), path.length());
     //System.out.println("Remain is " + remain);
     OverflowTableNode o =
-        findNodeInt(start, remain, createIfNothere, alwaysReturnParent, es);
+        findNodeInt(start, remain, createIfNothere, alwaysReturnParent, es, isClient);
     if (recordLastFound) {
       if (this.findPathCount(remain) > 1 && o != null
           && (o.key != null || o.parent.key != null)) {
@@ -142,7 +146,7 @@ public class OverflowTable {
   }
   
   private void createNotExistingNodeForInsert(OverflowTableNode cur, String path,
-      ExternalStorage es) {
+      ExternalStorage es, boolean isClient) {
 //    if(this.findPathCount(path)!=1) new Exception("longpath").printStackTrace();
 //    else new Exception("good path!").printStackTrace();
     if (NameNodeDummy.DEBUG)
@@ -151,6 +155,11 @@ public class OverflowTable {
     if (cur.right != null) {
       cur.right.setValue(es);
     } else {
+      if (!isClient) {
+        cur.left = new OverflowTableNode(null, null, cur);
+        cur.right = new OverflowTableNode(path, es, cur);
+        return;
+      }
       // Create a red black tree
       boolean isRedBlack = this.createRedBlackTree(cur, path, es);
       if (!isRedBlack) {
@@ -164,8 +173,14 @@ public class OverflowTable {
   private boolean createRedBlackTree(OverflowTableNode cur, String path, ExternalStorage es) {
     //Is parent a Null node.
     boolean isRedBlack = false;
-    if (this.findPathCount(path) == 1 && cur.parent != null && cur.parent.key == null) {
+    if (cur.parent != null && cur.parent.key == null) {
       RedBlackBST rb = cur.parent.getRb();
+      if (rb.getLevel() == -1) {
+        rb.setLevel(this.findPathCount(path));
+      } else if (this.findPathCount(path) != rb.getLevel()) {
+        //Not the same level, return;
+        return false;
+      }
       rb.put(path, es);
       //System.out.println(path + "[:]" + cur.key);
       isRedBlack = true;
@@ -209,7 +224,6 @@ public class OverflowTable {
       String c, String newPath, String curPath, ExternalStorage es) {
 
     OverflowTableNode or = cur.right;
-
     if (newPath.length() > c.length() && curPath.length() > c.length()) {
       this.createParentNodeInt(cur, or, c, curPath);
       logs("[OverflowTable] findNodeInt: Update key to " + cur.right.right.key);
@@ -275,7 +289,7 @@ public class OverflowTable {
    * @return
    */
   private OverflowTableNode findNodeInt(OverflowTableNode cur, String path,
-      boolean createIfNothere, boolean alwaysReturnParent, ExternalStorage es) {
+      boolean createIfNothere, boolean alwaysReturnParent, ExternalStorage es, boolean isClient) {
     //if (NameNodeDummy.TEST && (count++)%1000 == 0)
     //System.out.println("[OverflowTable] findNodeInt: Try to find " + path);
     //if (NameNodeDummy.isNullOrBlank(path) || path.length() < 2 || path.charAt(0) != '/') {
@@ -315,7 +329,7 @@ public class OverflowTable {
       }
       /** How to handle if no children there? **/
       if (createIfNothere) {
-        this.createNotExistingNodeForInsert(cur, path, es);
+        this.createNotExistingNodeForInsert(cur, path, es, isClient);
         return cur;
       }
       // If cur is left node, return null
@@ -365,21 +379,23 @@ public class OverflowTable {
       //return findNodeInt(cur.left, path, createIfNothere, alwaysReturnParent);
       //This change make it three times faster.
       // if (recordLastFound) {
-      if (this.findPathCount(path) == 1) {
+      //if (this.findPathCount(path) == 1) {
         //If this is the last path, make a quick search.
+        if (isClient) {
+          OverflowTableNode ot = findLeftNodeOnRedblack(cur.left, path);
+          if (ot != null) return ot;
+        }
         
-        OverflowTableNode ot = findLeftNodeOnRedblack(cur.left, path);
-        if (ot != null) return ot;
         return findNodeInt(findLeftNodeNonrecursiveInt(cur.left, path), path,
-            createIfNothere, alwaysReturnParent, es);
+            createIfNothere, alwaysReturnParent, es, isClient);
         //Retrun a virtual overflowtable node.  
-      } else {
-//        if (NameNodeDummy.TEST)
-//          System.out
-//              .println("[OverflowTable] findNodeInt: Not match, recursively find right path "
-//                  + path);
-        return findNodeInt(cur.left, path, createIfNothere, alwaysReturnParent,es);
-      }
+//      } else {
+////        if (NameNodeDummy.TEST)
+////          System.out
+////              .println("[OverflowTable] findNodeInt: Not match, recursively find right path "
+////                  + path);
+//        return findNodeInt(cur.left, path, createIfNothere, alwaysReturnParent,es);
+//      }
       //      } else {
       //        return findNodeInt(cur.left, path, createIfNothere, alwaysReturnParent);
       //      }
@@ -394,7 +410,7 @@ public class OverflowTable {
       } else {
         String remain = path.substring(p.length(), path.length());
         return findNodeInt(cur.right, remain, createIfNothere,
-            alwaysReturnParent,es);
+            alwaysReturnParent,es, isClient);
       }
     }
   }
@@ -402,11 +418,12 @@ public class OverflowTable {
   private OverflowTableNode findLeftNodeOnRedblack(OverflowTableNode cur, String path) {
     RedBlackBST rb = cur.getRb();
     OverflowTableNode ot = null;
-    if (rb.getRoot() != null) {
+    // If not the same level , don't bother.
+    if (rb.getRoot() != null && this.findPathCount(path) == rb.getLevel()) {
       ExternalStorage es = rb.get(path);
       //System.out.println(this.getFullPath(cur) +", [findLeftNodeOnRedblack] found " + (es ==null ? "":es.getPath()));
       if (es != null)
-      ot = new OverflowTableNode(path, es, cur, true);
+        ot = new OverflowTableNode(path, es, cur, true);
     }
     //System.out.println(path + "::findLeftNodeOnRedblack::" + cur.key);
     return ot;
@@ -568,10 +585,51 @@ public class OverflowTable {
     return t;
   }
 
-  public OverflowTableNode buildBST(ExternalStorage[] es, boolean ifSplit) {
-    return buildBSTInt(es, ifSplit, this.root);
+  public OverflowTableNode buildBST(ExternalStorage[] es, boolean ifSplit, boolean isClient) {
+    return buildBSTInt(es, ifSplit, this.root, isClient);
+  }
+  
+  /**
+   * Maximum 1000 layers.
+   * @param es
+   * @return
+   */
+  public OverflowTableNode buildBSTByLevel(ExternalStorage[] es, Map<String, OverflowTable> root) {
+    if (NameNodeDummy.isNullOrBlank(es)) return null;
+    for(int i=0;i<es.length;i++) {
+      String[] paths = es[i].getPath().split(S);
+      OverflowTable ot = root.get(paths[0]);
+      
+    }
+    return null;
   }
 
+  private void insertByLevel(String[] paths) {
+    int level = paths.length;
+    int height = treeDepth(this.root);
+    if (level > height) {
+      this.createBranches(paths);
+    }
+  }
+  
+  /**
+   * Create all the branches in paths.
+   * @param paths
+   */
+  private void createBranches(String[] paths) {
+    if (paths[0] != this.root.key) {
+      System.err.println("Error! Not the same tree!" + root.key + ":" + paths[0]);
+      return;
+    }
+    OverflowTableNode o = this.root;
+    for(int i = 0; i < paths.length; i++) {
+      if (o.right == null){
+        o.left = new OverflowTableNode(null, null, o);
+        o.right = new OverflowTableNode(paths[i], null, o);
+      }
+    } 
+  }
+  
   private static OverflowTable ot;
   private static Object ob = new Object();
 
@@ -601,7 +659,7 @@ public class OverflowTable {
   	return ot;
   }
   **/
-  public static OverflowTable buildBSTFromScratch(ExternalStorage[] es) {
+  public static OverflowTable buildBSTFromScratch(ExternalStorage[] es, boolean isClient) {
     if (NameNodeDummy.isNullOrBlank(es))
       return null;
     String r = getNaturalRootFromFullPath(es[0].getPath());
@@ -609,7 +667,7 @@ public class OverflowTable {
       return null;
     OverflowTableNode root = new OverflowTableNode(r);
     getInstance(root);
-    ot.buildBSTInt(es, false, root);
+    ot.buildBSTInt(es, false, root, isClient);
     return ot;
   }
 
@@ -619,7 +677,7 @@ public class OverflowTable {
    * @return
    */
   public synchronized static OverflowTable buildOrAddBST(ExternalStorage[] es,
-      OverflowTable ot) {
+      OverflowTable ot, boolean isClient) {
     long s = System.currentTimeMillis();
     if (NameNodeDummy.isNullOrBlank(es))
       return null;
@@ -631,7 +689,7 @@ public class OverflowTable {
       OverflowTableNode root = new OverflowTableNode(r);
       ot = new OverflowTable(root);
     }
-    ot.buildBSTInt(es, false, ot.getRoot());
+    ot.buildBSTInt(es, false, ot.getRoot(), isClient);
     if (NameNodeDummy.DEBUG)
       System.out.println("[OverflowTable] The API buildOrAddBST spend "
           + (System.currentTimeMillis() - s));
@@ -655,7 +713,7 @@ public class OverflowTable {
    * @return
    */
   private OverflowTableNode buildBSTInt(ExternalStorage[] es, boolean ifSplit,
-      OverflowTableNode root) {
+      OverflowTableNode root, boolean isClient) {
     if (es == null)
       return null;
     //Arrays.sort(es);
@@ -704,17 +762,17 @@ public class OverflowTable {
       if (ifSplit) {
         String[] p = splitPath(path);
         if (p != null) {
-          o = this.insert(p[0], null);
+          o = this.insert(p[0], null, isClient);
           if (o != null && o.right != null) {
             // logs("[buildBST] Is split to null ?"+p[1]);
             this.createNotExistingNode(o.right, p[1], es[i]);
           }
         } else {
           logs("[buildBSTInt] Don't have to split, directly insert " + path);
-          o = this.insert(path, es[i]);
+          o = this.insert(path, es[i], isClient);
         }
       } else {
-        o = this.insert(path, es[i]);
+        o = this.insert(path, es[i], isClient);
       }
       //if (o != null)
       //OverflowMap.addToMap(path, o);
@@ -801,11 +859,11 @@ public class OverflowTable {
    * @param value
    * @return
    */
-  public OverflowTableNode insert(String key, ExternalStorage value) {
+  public OverflowTableNode insert(String key, ExternalStorage value, boolean isClient) {
 
     if (NameNodeDummy.DEBUG)
       System.out.println("[insert] Try to insert node " + key);
-    OverflowTableNode otn = this.findNode(key, true, false, value);
+    OverflowTableNode otn = this.findNode(key, true, false, value, isClient);
     if (otn == null)
       return null;
     if (NameNodeDummy.DEBUG)
@@ -842,8 +900,8 @@ public class OverflowTable {
    * @param fullPath
    * @return
    */
-  public OverflowTableNode remove(String fullPath) {
-    OverflowTableNode otn = this.findNode(fullPath, false, false);
+  public OverflowTableNode remove(String fullPath, boolean isClient) {
+    OverflowTableNode otn = this.findNode(fullPath, false, false, isClient);
     if (otn == null) {
       logs("Node not existing " + fullPath);
       return null;

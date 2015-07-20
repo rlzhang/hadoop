@@ -942,12 +942,12 @@ public class NameNodeDummy {
   public void buildOrAddBSTServer(ExternalStorage[] es) {
     if (es == null) return;
     for(int i = 0; i < es.length; i++){
-      this.buildOrAddBST(es, ROOT);
+      this.buildOrAddBST(es, ROOT, false);
     }
   }
   
-  public OverflowTable buildOrAddBST(ExternalStorage[] es) {
-    return this.buildOrAddBST(es, ROOT);
+  public OverflowTable buildOrAddBST(ExternalStorage[] es, boolean isClient) {
+    return this.buildOrAddBST(es, ROOT, isClient);
   }
   
   public void buildOrAddBSTAllClient(ExternalStorage[] es) {
@@ -957,7 +957,7 @@ public class NameNodeDummy {
     }
   }
   public OverflowTable buildOrAddBSTClient(ExternalStorage[] es) {
-    return this.buildOrAddBST(es, staticRoot);
+    return this.buildOrAddBST(es, staticRoot, true);
   }
 
   /**
@@ -965,7 +965,7 @@ public class NameNodeDummy {
    * @param es
    * @return
    */
-  public OverflowTable buildOrAddBST(ExternalStorage[] es, Map<String, OverflowTable> root) {
+  public OverflowTable buildOrAddBST(ExternalStorage[] es, Map<String, OverflowTable> root, boolean isClient) {
     //long start = System.currentTimeMillis();
     String key = OverflowTable.getNaturalRootFromFullPath(es[0].getPath());
     if (!this.verifyOverflowTable(es, key)) {
@@ -977,31 +977,31 @@ public class NameNodeDummy {
     if (NameNodeDummy.DEBUG)
       System.out.println("[NamenodeDummy] buildOrAddBST: Get key " + key);
     if (root.get(key) == null)
-      root.put(key, OverflowTable.buildOrAddBST(es, null));
+      root.put(key, OverflowTable.buildOrAddBST(es, null, isClient));
     else
-      root.put(key, OverflowTable.buildOrAddBST(es, root.get(key)));
+      root.put(key, OverflowTable.buildOrAddBST(es, root.get(key), isClient));
     //System.out.println("[buildOrAddBST] Take " + (System.currentTimeMillis() - start) + " milliseconds.");
     //System.out.println("[buildOrAddBST] Overflow table depth is " + OverflowTable.treeDepth(root.get(key).getRoot()) + " in root dir " + key);
     return root.get(key);
   }
 
-  public String getThefirstNN(String key) {
+  public String getThefirstNN(String key, boolean isClient) {
     OverflowTable ot = ROOT.get(OverflowTable.getNaturalRootFromFullPath(key));
     if (ot == null)
       return null;
     OverflowTableNode o;
-    return (o = ot.findNode(key, false, false)) == null ? null
+    return (o = ot.findNode(key, false, false, isClient)) == null ? null
         : (o.getValue() == null ? null : o.getValue().getTargetNNServer());
 
   }
 
-  public String getThefirstSourceNN(String key) {
+  public String getThefirstSourceNN(String key, boolean isClient) {
     OverflowTable ot = ROOT.get(OverflowTable.getNaturalRootFromFullPath(key));
     if (ot == null)
       return null;
     OverflowTableNode o;
 
-    return (o = ot.findNode(key, false, false)) == null ? null
+    return (o = ot.findNode(key, false, false, isClient)) == null ? null
         : (o.getValue() == null ? null : o.getValue().getSourceNNServer());
 
   }
@@ -1018,7 +1018,7 @@ public class NameNodeDummy {
     // Logs only, have to remove.
     //if (ot != null)
     //this.printlnOverflowTable(ot.getRoot());
-    return ot == null ? null : ot.findNode(key, false, alwaysReturnParent);
+    return ot == null ? null : ot.findNode(key, false, alwaysReturnParent, false);
 
   }
   
@@ -1031,13 +1031,13 @@ public class NameNodeDummy {
   
   public Object[] getFullPathInServer(String key,
       boolean alwaysReturnParent) {
-    return this.getFullPathInServer(key, alwaysReturnParent, ROOT);
+    return this.getFullPathInServer(key, alwaysReturnParent, ROOT, false);
   }
   
   
   public Object[] getFullPathInServerClient(String key,
       boolean alwaysReturnParent) {
-    return this.getFullPathInServer(key, alwaysReturnParent, staticRoot);
+    return this.getFullPathInServer(key, alwaysReturnParent, staticRoot, false);
   }
   /**
    * This method should for client use only, don't try to use in server side!
@@ -1048,12 +1048,12 @@ public class NameNodeDummy {
    * @return object[0]: node as OverflowTableNode; object[1]: Full path as String.
    */
   public Object[] getFullPathInServer(String key,
-      boolean alwaysReturnParent, Map<String, OverflowTable> root) {
+      boolean alwaysReturnParent, Map<String, OverflowTable> root, boolean isClient) {
     Object[] obj = new Object[2];
     OverflowTable ot = root.get(OverflowTable.getNaturalRootFromFullPath(key));
    
     if (ot == null) return null;
-    OverflowTableNode found = ot.findNode(key, true, alwaysReturnParent);
+    OverflowTableNode found = ot.findNode(key, true, alwaysReturnParent, isClient);
     obj[0] = found;
     obj[1] = ot.getFullPath(found);
     return obj;
@@ -1093,11 +1093,11 @@ public class NameNodeDummy {
    * @param alwaysReturnParent
    * @return
    */
-  public OverflowTableNode findLastMatchedPath(String key) {
+  public OverflowTableNode findLastMatchedPath(String key, boolean isClient) {
     OverflowTable ot = ROOT.get(OverflowTable.getNaturalRootFromFullPath(key));
     // Logs only, have to remove.
     //this.printlnOverflowTable(ot.getRoot());
-    return ot == null ? null : ot.findNode(key, false, true);
+    return ot == null ? null : ot.findNode(key, false, true, isClient);
 
   }
 
@@ -1174,11 +1174,11 @@ public class NameNodeDummy {
     return null;
   }
 
-  public boolean removeExternalNN(String key) {
+  public boolean removeExternalNN(String key, boolean isClient) {
     OverflowTable ot = ROOT.get(OverflowTable.getNaturalRootFromFullPath(key));
     if (ot == null)
       return false;
-    return ot.remove(key) == null ? false : true;
+    return ot.remove(key, isClient) == null ? false : true;
   }
 
   public static boolean removeExternalNN_OLD(String key) {
@@ -1246,7 +1246,7 @@ public class NameNodeDummy {
    * @param path
    * @return
    */
-  public synchronized OverflowTableNode findNode(String path) {
+  public synchronized OverflowTableNode findNode(String path, boolean isClient) {
     path = this.filterNamespace(path);
     if (DEBUG)
       debug("[NameNodeDummy] findNode: Try to find " + path);
@@ -1256,18 +1256,18 @@ public class NameNodeDummy {
     OverflowTable ot = ROOT.get(OverflowTable.getNaturalRootFromFullPath(path));
     if (ot == null)
       return null;
-    OverflowTableNode found = ot.findNode(path, false, true);
+    OverflowTableNode found = ot.findNode(path, false, true, isClient);
     if (DEBUG)
       debug("[NameNodeDummy] findExternalNN: Found path in other namenode "
           + found.key);
     return found;
   }
   
-  public synchronized ExternalStorage[] findExternalNN(String path) {
-    return this.findExternalNN(path, ROOT);
+  public synchronized ExternalStorage[] findExternalNNServer(String path) {
+    return this.findExternalNN(path, ROOT, false);
   }
   public synchronized ExternalStorage[] findExternalNNClient(String path) {
-    return this.findExternalNN(path, staticRoot);
+    return this.findExternalNN(path, staticRoot, true);
   }
   /**
    * If path outside current NN?
@@ -1275,7 +1275,7 @@ public class NameNodeDummy {
    * @param path
    * @return
    */
-  private synchronized ExternalStorage[] findExternalNN(String path, Map<String, OverflowTable> root) {
+  private synchronized ExternalStorage[] findExternalNN(String path, Map<String, OverflowTable> root, boolean isClient) {
     path = this.filterNamespace(path);
     if (DEBUG)
       debug("[NameNodeDummy] findExternalNN: Try to find " + path);
@@ -1290,7 +1290,7 @@ public class NameNodeDummy {
           + OverflowTable.getNaturalRootFromFullPath(path));
     if (ot == null)
       return null;
-    OverflowTableNode found = ot.findNode(path, false, true);
+    OverflowTableNode found = ot.findNode(path, false, true, isClient);
     if (DEBUG)
       debug("[NameNodeDummy] findExternalNN: Found path in other namenode "
           + found.key);
@@ -1304,7 +1304,7 @@ public class NameNodeDummy {
    * @return
    */
   public HdfsFileStatus findOverflowTableByPath(String path) {
-    ExternalStorage[] ess = findExternalNN(path);
+    ExternalStorage[] ess = findExternalNNServer(path);
     return ess == null ? null : new HdfsFileStatus(ess, path);
   }
 
