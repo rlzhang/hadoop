@@ -1037,7 +1037,7 @@ public class NameNodeDummy {
   
   public Object[] getFullPathInServerClient(String key,
       boolean alwaysReturnParent) {
-    return this.getFullPathInServer(key, alwaysReturnParent, staticRoot, false);
+    return this.getFullPathInServer(key, alwaysReturnParent, staticRoot, true);
   }
   /**
    * This method should for client use only, don't try to use in server side!
