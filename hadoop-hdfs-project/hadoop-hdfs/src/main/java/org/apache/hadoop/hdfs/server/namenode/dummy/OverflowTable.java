@@ -385,9 +385,9 @@ public class OverflowTable {
           OverflowTableNode ot = findLeftNodeOnRedblack(cur.left, path);
           if (ot != null) return ot;
         }
-        
-        return findNodeInt(findLeftNodeNonrecursiveInt(cur.left, path), path,
-            createIfNothere, alwaysReturnParent, es, isClient);
+        return findNodeInt(cur.left, path, createIfNothere, alwaysReturnParent, es, isClient);
+        //return findNodeInt(findLeftNodeInt(cur.left, path), path,
+          //  createIfNothere, alwaysReturnParent, es, isClient);
         //Retrun a virtual overflowtable node.  
 //      } else {
 ////        if (NameNodeDummy.TEST)
@@ -417,11 +417,19 @@ public class OverflowTable {
 
   private OverflowTableNode findLeftNodeOnRedblack(OverflowTableNode cur, String path) {
     RedBlackBST rb = cur.getRb();
+    if (cur.parent.parent != null && cur.parent.parent.getRb()!=null && cur.parent.parent.getRb().getRoot() != null){
+      NameNodeDummy.debug("[findLeftNodeOnRedblack] - Start" + cur.parent.parent.getRb().getRoot() + ":::" + cur.parent.right.key);
+      rb = cur.parent.parent.getRb();
+    }
     OverflowTableNode ot = null;
     // If not the same level , don't bother.
-    if (rb.getRoot() != null && this.findPathCount(path) == rb.getLevel()) {
+    //if (rb !=null && rb.getRoot() != null && this.findPathCount(path) == rb.getLevel()) {
+    if (rb !=null && rb.getRoot() != null) {
+      if (this.findPathCount(path) > 1) {
+        path = this.getNaturalRootFromFullPath(path);
+      }
       ExternalStorage es = rb.get(path);
-      //System.out.println(this.getFullPath(cur) +", [findLeftNodeOnRedblack] found " + (es ==null ? "":es.getPath()));
+      NameNodeDummy.debug("[findLeftNodeOnRedblack]" + this.getFullPath(cur) +", [findLeftNodeOnRedblack] found " + (es ==null ? "":es.getPath()));
       if (es != null)
         ot = new OverflowTableNode(path, es, cur, true);
     }
@@ -451,12 +459,16 @@ public class OverflowTable {
     //count = 0;
     while (t.right != null) {
       //count++;
+      //if (t.right.key.startsWith(path) || path.startsWith(t.right.key)) {
       if (t.right.key.equals(path)) {
+        NameNodeDummy.debug("[findLeftNodeNonrecursiveInt] Matched " + (t == null ? "" : this.getFullPath(t)));
+        
         return t.right;
       }
       t = t.left;
     }
     //System.out.println(path + ", count: " + count);
+    NameNodeDummy.debug("[findLeftNodeNonrecursiveInt] found " + (t == null ? "" : this.getFullPath(t)));
     //System.out.println("findLeftNodeNonrecursiveInt spend " + (System.currentTimeMillis() - start));
     return t;
   }

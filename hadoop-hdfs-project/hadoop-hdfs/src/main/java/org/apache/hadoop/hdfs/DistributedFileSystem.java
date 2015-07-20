@@ -361,7 +361,7 @@ public class DistributedFileSystem extends FileSystem {
       es = nn.findHostInPath(found);
       //host = es.getTargetNNServer();
       //namespace = es.getSourceNNServer();
-      //System.out.println("[getRightDFSClient] namespace = " + es.getSourceNNServer());
+      NameNodeDummy.debug("[getRightDFSClient] namespace = " + (es == null ? "" : es.getTargetNNServer()));
       //String namespace = es.getSourceNNServer();
     }
 
