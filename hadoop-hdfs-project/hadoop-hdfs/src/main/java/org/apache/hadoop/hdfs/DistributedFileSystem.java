@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
@@ -114,6 +115,8 @@ public class DistributedFileSystem extends FileSystem {
   private String homeDirPrefix = DFSConfigKeys.DFS_USER_HOME_DIR_PREFIX_DEFAULT;
   private static final String PRE = "/";
   NameNodeDummy nn = new NameNodeDummy();
+  
+  //NameNodeDummy nn = NameNodeDummy.getNameNodeDummyInstance();
   DFSClient dfs;
   //ExternalStorage[] es; // Overflow table from NN
   private boolean verifyChecksum = true;
@@ -354,15 +357,8 @@ public class DistributedFileSystem extends FileSystem {
     ExternalStorage es = NameNodeDummy.getValueFromLRUMap(path);
     //String namespace = "";
     if (es == null) {
-      Object[] obj = nn.getFullPathInServerClient(path, true);
-      if (obj == null)
-        return new DFSClientProxy(dfs, path);
-      OverflowTableNode found = (OverflowTableNode) obj[0];
-      es = nn.findHostInPath(found);
-      //host = es.getTargetNNServer();
-      //namespace = es.getSourceNNServer();
+      es = nn.findLastMatchedNodeClient(path);
       NameNodeDummy.debug("[getRightDFSClient] namespace = " + (es == null ? "" : es.getTargetNNServer()));
-      //String namespace = es.getSourceNNServer();
     }
 
     if (es == null)
@@ -371,6 +367,27 @@ public class DistributedFileSystem extends FileSystem {
     return new DFSClientProxy(DFSClient.getDfsclient(es.getTargetNNServer()),
         PRE + INodeServer.PREFIX + es.getSourceNNServer() + path);
   }
+//  private DFSClientProxy getRightDFSClient(String path) {
+//    ExternalStorage es = NameNodeDummy.getValueFromLRUMap(path);
+//    //String namespace = "";
+//    if (es == null) {
+//      Object[] obj = nn.getFullPathInServerClient(path, true);
+//      if (obj == null)
+//        return new DFSClientProxy(dfs, path);
+//      OverflowTableNode found = (OverflowTableNode) obj[0];
+//      es = nn.findHostInPath(found);
+//      //host = es.getTargetNNServer();
+//      //namespace = es.getSourceNNServer();
+//      NameNodeDummy.debug("[getRightDFSClient] namespace = " + (es == null ? "" : es.getTargetNNServer()));
+//      //String namespace = es.getSourceNNServer();
+//    }
+//
+//    if (es == null)
+//      return new DFSClientProxy(dfs, path);
+//    //return new DFSClientProxy(DFSClient.getDfsclient(host), PRE + INodeServer.PREFIX + namespace + path);
+//    return new DFSClientProxy(DFSClient.getDfsclient(es.getTargetNNServer()),
+//        PRE + INodeServer.PREFIX + es.getSourceNNServer() + path);
+//  }
 
   //  private DFSClientProxy getRightDFSClientOld(String path) {
   //    Object[] obj = nn.getFullPathInServer(path, true);
@@ -897,20 +914,21 @@ public class DistributedFileSystem extends FileSystem {
               + partialListing[i].getEs().length);
         if (partialListing[i].getEs() != null
             && partialListing[i].getEs().length > 0) {
-          //nn.buildOrAddBSTClient(partialListing[i].getEs());
-          nn.buildOrAddBSTAllClient(partialListing[i].getEs());
+          //nn.buildOrAddBSTAllClient(partialListing[i].getEs());
+          //nn.buildOrAddRadixAllBSTClient(partialListing[i].getEs());
           hasOverflowTable = true;
         }
       }
     }
 
-    if (hasOverflowTable && !nn.isClientMapEmpty()) {
+    if (hasOverflowTable && !nn.isClientRadixMapEmpty()) {
       if (NameNodeDummy.DEBUG)
         NameNodeDummy
             .debug("=======[DistributedFileSystem]listStatusInternal] Getting namespace from other namenode start...; src = "
                 + src);
-
-      ExternalStorage[] es = nn.findExternalNNClient(src);
+      //For multi-branch tree.
+      ExternalStorage[] es = nn.findAllValuesClient(src);
+      //ExternalStorage[] es = nn.findExternalNNClient(src);
       /**
       for(int i =0;i<es.length;i++){
       String path = "/" + INodeServer.PREFIX+es[i].getSourceNNServer()+src;
@@ -1381,37 +1399,49 @@ public class DistributedFileSystem extends FileSystem {
   // Map<String,Map<String,OverflowTable>> overflowTableMap = new HashMap<String,Map<String,OverflowTable>>();
 
   // Cache the first visited namenode of all overflow table data.
-  private static boolean isCached = false;
-
+  private static AtomicBoolean isCached = new AtomicBoolean(Boolean.FALSE);
+  //private static Object obj = new Object();
+  private final static Object lock = new Object();
   //private static Map<DFSClient, NameNodeDummy> overflowCaches = new java.util.concurrent.ConcurrentHashMap<DFSClient, NameNodeDummy>();
-  private synchronized static void getOverflowTable(String path, DFSClient dfs, NameNodeDummy nn)
+  private static void getOverflowTable(String path, DFSClient dfs, NameNodeDummy nn)
       throws IOException {
-    if (!isCached) {
-      //it throw java.lang.IllegalStateException, have to fix.
-      // HdfsFileStatus hfs = dfs.getOverflowTable("/");
-      
-      
-      //String root = OverflowTable.getNaturalRootFromFullPath(path);
-      //HdfsFileStatus hfs = dfs.getFileInfo(root);
-      
-      HdfsFileStatus hfs = dfs.getFileInfo(PRE);
-      NameNodeDummy.debug("1) [DistributedFileSystem] getOverflowTable is "
-          + hfs);
-      NameNodeDummy.debug("1.1) [DistributedFileSystem] "
-          + (hfs != null && hfs.getEs() != null));
-      if (hfs != null && hfs.getEs() != null) {
-        NameNodeDummy.debug("2) [DistributedFileSystem] getOverflowTable is "
-            + (hfs.getEs() == null ? "" : hfs.getEs().length));
-        //if (PRE.equals(root))
-        nn.buildOrAddBSTAllClient(hfs.getEs());
-        //else
-          //nn.buildOrAddBSTClient(hfs.getEs());
-        System.out.println("[buildOrAddBST] Overflow table has records "
-            + hfs.getEs().length);
+    if (isCached.get() == false)
+    synchronized(lock) {
+      if (isCached.get() == false) {
+        //it throw java.lang.IllegalStateException, have to fix.
+        // HdfsFileStatus hfs = dfs.getOverflowTable("/");
+        try {
+        
+        //String root = OverflowTable.getNaturalRootFromFullPath(path);
+        //HdfsFileStatus hfs = dfs.getFileInfo(root);
+        
+        HdfsFileStatus hfs = dfs.getFileInfo(PRE);
+        NameNodeDummy.debug("1) [DistributedFileSystem] getOverflowTable is "
+            + hfs);
+        NameNodeDummy.debug("1.1) [DistributedFileSystem] "
+            + (hfs != null && hfs.getEs() != null));
+        if (hfs != null && hfs.getEs() != null) {
+          NameNodeDummy.debug("2) [DistributedFileSystem] getOverflowTable is "
+              + (hfs.getEs() == null ? "" : hfs.getEs().length));
+          //if (PRE.equals(root))
+          //For multi-branch tree.
+          nn.buildOrAddRadixAllBSTClient(hfs.getEs());
+         // nn.buildOrAddBSTAllClient(hfs.getEs());
+          //else
+            //nn.buildOrAddBSTClient(hfs.getEs());
+          System.out.println("[buildOrAddBST] Overflow table has records "
+              + hfs.getEs().length);
 
+        }
+        } catch (Exception e){
+          
+        } finally {
+          isCached.set(Boolean.TRUE);
+        }
+        
       }
-      isCached = true;
     }
+    
   }
 
   /**

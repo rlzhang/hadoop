@@ -614,8 +614,10 @@ public class INodeClient implements CallBack{
           + this.link.getEsMap().length);
       //NameNodeDummy.getNameNodeDummyInstance().buildOrAddBST(
         //  this.link.getEsMap());
-          NameNodeDummy.getNameNodeDummyInstance().buildOrAddBSTServer(
-              this.link.getEsMap());
+      //For multi-branch tree
+      NameNodeDummy.getNameNodeDummyInstance().buildOrAddRadixBSTServer(this.link.getEsMap());
+          //NameNodeDummy.getNameNodeDummyInstance().buildOrAddBSTServer(
+            //  this.link.getEsMap());
       NameNodeDummy.getNameNodeDummyInstance().addExternalNode(this.link,
           this.subTree.getParent());
     }

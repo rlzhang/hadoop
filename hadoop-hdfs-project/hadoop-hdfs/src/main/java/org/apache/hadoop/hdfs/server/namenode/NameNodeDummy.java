@@ -9,10 +9,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -37,9 +37,12 @@ import org.apache.hadoop.hdfs.server.namenode.dummy.ExternalStorage;
 import org.apache.hadoop.hdfs.server.namenode.dummy.ExternalStorageMapping;
 import org.apache.hadoop.hdfs.server.namenode.dummy.INodeClient;
 import org.apache.hadoop.hdfs.server.namenode.dummy.INodeServer;
+import org.apache.hadoop.hdfs.server.namenode.dummy.IOverflowTable;
 import org.apache.hadoop.hdfs.server.namenode.dummy.OverflowTable;
 import org.apache.hadoop.hdfs.server.namenode.dummy.OverflowTableNode;
+import org.apache.hadoop.hdfs.server.namenode.dummy.RadixTreeOverflowTable;
 import org.apache.hadoop.hdfs.server.namenode.dummy.UpdateRequest;
+import org.apache.hadoop.hdfs.server.namenode.dummy.tree.RadixTreeNode;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 import org.apache.hadoop.hdfs.util.ReadOnlyList;
 import org.apache.hadoop.security.AccessControlException;
@@ -52,6 +55,7 @@ import org.apache.hadoop.security.AccessControlException;
  */
 public class NameNodeDummy {
 
+  public static final String PRE = "/";
   public static final Log LOG = LogFactory
       .getLog(NameNodeDummy.class.getName());
   // How many levels of namespace tree
@@ -90,6 +94,14 @@ public class NameNodeDummy {
   private static Map<String, OverflowTable> staticRoot =
       new ConcurrentHashMap<String, OverflowTable>();
   
+  private Map<String, IOverflowTable<ExternalStorage, RadixTreeNode>> RADIX_ROOT =
+      new ConcurrentHashMap<String, IOverflowTable<ExternalStorage, RadixTreeNode>>();
+  //private Map<String, String> map = new HashMap<String, String>();
+  
+  // Mainly for client use
+  private static Map<String, IOverflowTable<ExternalStorage, RadixTreeNode>> RADIX_STATIC_ROOT =
+      new ConcurrentHashMap<String, IOverflowTable<ExternalStorage, RadixTreeNode>>();
+  
   /**
    * For client use, store path => namenode address
    * Fix size is 1000.
@@ -101,6 +113,9 @@ public class NameNodeDummy {
   //private static LRUMap lru = new LRUMap(10);
   // path => ExternalStorage mapping. this path is exactly same as in ExternalStorage.
   public static Map<String,ExternalStorage> overflowPathCache = java.util.Collections.synchronizedMap(new LRUMap(2000));
+  public static Set<ExternalStorage> overflowSet = java.util.Collections.synchronizedSet(new HashSet());
+  
+  
   /**
    * key is path hashcode, value is namenode hostname
    * @param key
@@ -143,6 +158,10 @@ public class NameNodeDummy {
   public boolean isClientMapEmpty() {
     return staticRoot.size() == 0 ? true : false;
   }
+  
+  public boolean isClientRadixMapEmpty() {
+    return RADIX_STATIC_ROOT.size() == 0 ? true : false;
+  }
 
 
   private synchronized ExternalStorage[] getExternalStorageFromRoot(Map<String, OverflowTable> root) {
@@ -158,6 +177,7 @@ public class NameNodeDummy {
   public static NameNodeDummy getNameNodeDummyInstance() {
     if (nameNodeDummy != null)
       return nameNodeDummy;
+    if (nameNodeDummy == null)
     synchronized (obj) {
       if (nameNodeDummy == null)
         nameNodeDummy = new NameNodeDummy();
@@ -939,7 +959,7 @@ public class NameNodeDummy {
   }
   
   
-  public void buildOrAddBSTServer(ExternalStorage[] es) {
+  public void buildOrAddBSTServer2(ExternalStorage[] es) {
     if (es == null) return;
     for(int i = 0; i < es.length; i++){
       this.buildOrAddBST(es, ROOT, false);
@@ -950,6 +970,51 @@ public class NameNodeDummy {
     return this.buildOrAddBST(es, ROOT, isClient);
   }
   
+  public IOverflowTable buildOrAddRadixBSTServer(ExternalStorage[] es) {
+    return this.buildOrAddBRadixBST(es, RADIX_ROOT);
+  }
+  
+  public IOverflowTable buildOrAddRadixBSTClient(ExternalStorage[] es) {
+    return this.buildOrAddBRadixBST(es, RADIX_STATIC_ROOT);
+  }
+  
+  public void buildOrAddRadixAllBSTClient(ExternalStorage[] es) {
+    if (es == null) return;
+    for(int i = 0; i < es.length; i++){
+      //synchronized(obj) {
+        if (NameNodeDummy.overflowSet.contains(es[i])) {
+          continue;
+        }
+        this.buildOrAddBRadixBST(new ExternalStorage[]{es[i]}, RADIX_STATIC_ROOT);
+        NameNodeDummy.overflowSet.add(es[i]);
+     // }
+     
+    }
+  }
+  
+  private IOverflowTable buildOrAddBRadixBST(ExternalStorage[] es, Map<String, IOverflowTable<ExternalStorage, RadixTreeNode>> root) {
+    //long start = System.currentTimeMillis();
+    String key = OverflowTable.getNaturalRootFromFullPath(es[0].getPath());
+    if (!this.verifyOverflowTable(es, key)) {
+      System.err
+          .println("Verify failed, the root path not match in ExternalStorage array!");
+      new Exception("Wrong path set!").printStackTrace();
+      return null;
+    }
+    if (NameNodeDummy.DEBUG)
+      System.out.println("[NamenodeDummy] buildOrAddBST: Get key " + key);
+    IOverflowTable node = root.get(key);
+    if (node == null){
+      node = new RadixTreeOverflowTable();
+      node.buildOrAddBST(es);
+      //System.out.println("[NamenodeDummy] buildOrAddBST:" + key);
+      root.put(key,node);
+    }
+    else {
+      node.buildOrAddBST(es);
+    }
+    return node;
+  }
   public void buildOrAddBSTAllClient(ExternalStorage[] es) {
     if (es == null) return;
     for(int i = 0; i < es.length; i++){
@@ -1032,6 +1097,20 @@ public class NameNodeDummy {
   public Object[] getFullPathInServer(String key,
       boolean alwaysReturnParent) {
     return this.getFullPathInServer(key, alwaysReturnParent, ROOT, false);
+  }
+  
+  
+  public ExternalStorage findLastMatchedNodeClient(String key) {
+    return this.findLastMatchedNode(key, RADIX_STATIC_ROOT);
+  }
+  
+  public ExternalStorage findLastMatchedNodeServer(String key) {
+    return this.findLastMatchedNode(key, RADIX_ROOT);
+  }
+  
+  public ExternalStorage findLastMatchedNode(String key, Map<String, IOverflowTable<ExternalStorage, RadixTreeNode>> root) {
+    IOverflowTable<ExternalStorage, RadixTreeNode> ot = root.get(OverflowTable.getNaturalRootFromFullPath(key));
+    return ot == null ? null : ot.findLastMatchedNode(key);
   }
   
   
@@ -1265,6 +1344,50 @@ public class NameNodeDummy {
   
   public synchronized ExternalStorage[] findExternalNNServer(String path) {
     return this.findExternalNN(path, ROOT, false);
+  }
+  
+  public synchronized ExternalStorage[] findAllValuesClient(String path) {
+    return this.findAllValuesInRadixTree(path, RADIX_STATIC_ROOT);
+  }
+  
+  public synchronized ExternalStorage[] findAllValuesServer(String path) {
+    return this.findAllValuesInRadixTree(path, RADIX_ROOT);
+    
+  }
+  
+  public synchronized ExternalStorage[] findRootValuesServer(String path) {
+    path = this.filterNamespace(path);
+    if (isNullOrBlank(path) || !PRE.equals(path) || RADIX_ROOT.isEmpty())
+      return null;
+    ExternalStorage[] es = null;
+    Iterator<IOverflowTable<ExternalStorage, RadixTreeNode>> ite = RADIX_ROOT.values().iterator();
+    while (ite.hasNext()) {
+      IOverflowTable<ExternalStorage, RadixTreeNode> ot = ite.next();
+      ExternalStorage[] tmp = ot.findAllValues(PRE);
+      //System.out.println("[findRootValuesServer]tmp is " + tmp.length);
+      if (es != null) {
+        ExternalStorage[] ess = new ExternalStorage[es.length + tmp.length];
+        
+        System.arraycopy(es, 0, ess, 0, es.length);
+        if (tmp != null)
+        System.arraycopy(tmp, 0, ess, es.length, tmp.length);
+        es = ess;
+        tmp = null;
+      } else {
+        es = tmp;
+      }
+      
+    }
+    return es;
+  }
+  public synchronized ExternalStorage[] findAllValuesInRadixTree(String path, Map<String, IOverflowTable<ExternalStorage, RadixTreeNode>> root) {
+    path = this.filterNamespace(path);
+    if (isNullOrBlank(path))
+      return null;
+    IOverflowTable<ExternalStorage, RadixTreeNode> ot = root.get(OverflowTable.getNaturalRootFromFullPath(path));
+    if (ot == null)
+      return null;
+    return ot.findAllValues(path);
   }
   public synchronized ExternalStorage[] findExternalNNClient(String path) {
     return this.findExternalNN(path, staticRoot, true);

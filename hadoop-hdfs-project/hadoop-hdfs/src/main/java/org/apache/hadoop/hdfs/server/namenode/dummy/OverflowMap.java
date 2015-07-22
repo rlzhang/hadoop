@@ -4,8 +4,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.commons.collections.map.LRUMap;
-
 public class OverflowMap {
   private static AtomicInteger count = new AtomicInteger(0);
   private static Map<String, OverflowTableNode> map =

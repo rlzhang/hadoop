@@ -20,8 +20,8 @@ public class ExternalStorage implements Comparable<ExternalStorage>{
 	private String targetNNPId;
 	private String path;
 	// 1, move one subtree, 2, hash move.
-	private int type = 1;
-	private int hashValue;
+	private short type = 1;
+	private int hashValue = -1;
 	private long moveTime;
 	
 	public ExternalStorage(int id,String targetNNServer,String targetNNPId,String path,String sourceNNServer){
@@ -105,14 +105,17 @@ public class ExternalStorage implements Comparable<ExternalStorage>{
 
 	@Override
 	public int compareTo(ExternalStorage es) {
-		return this.path.compareTo(es.getPath());
+	  if (this.type == 1)
+		  return this.path.compareTo(es.getPath());
+	  else
+	    return this.hashValue - es.getHashValue();
 	}
 
-	public int getType() {
+	public short getType() {
 		return type;
 	}
 
-	public void setType(int type) {
+	public void setType(short type) {
 		this.type = type;
 	}
 

@@ -7,7 +7,7 @@ import java.util.Map;
 
 import org.apache.hadoop.hdfs.server.namenode.NameNodeDummy;
 
-public class OverflowTable {
+public class OverflowTable implements IOverflowTable<ExternalStorage, OverflowTableNode>{
   //private final static String NULL = "null";
   private final static String S = "/";
   private OverflowTableNode root;
@@ -382,7 +382,7 @@ public class OverflowTable {
       //if (this.findPathCount(path) == 1) {
         //If this is the last path, make a quick search.
         if (isClient) {
-          OverflowTableNode ot = findLeftNodeOnRedblack(cur.left, path);
+          OverflowTableNode ot = findLeftNodeOnRedblack(cur.left, path, alwaysReturnParent);
           if (ot != null) return ot;
         }
         return findNodeInt(cur.left, path, createIfNothere, alwaysReturnParent, es, isClient);
@@ -415,7 +415,7 @@ public class OverflowTable {
     }
   }
 
-  private OverflowTableNode findLeftNodeOnRedblack(OverflowTableNode cur, String path) {
+  private OverflowTableNode findLeftNodeOnRedblack(OverflowTableNode cur, String path, boolean alwaysReturnParent) {
     RedBlackBST rb = cur.getRb();
     if (cur.parent.parent != null && cur.parent.parent.getRb()!=null && cur.parent.parent.getRb().getRoot() != null){
       NameNodeDummy.debug("[findLeftNodeOnRedblack] - Start" + cur.parent.parent.getRb().getRoot() + ":::" + cur.parent.right.key);
@@ -425,7 +425,7 @@ public class OverflowTable {
     // If not the same level , don't bother.
     //if (rb !=null && rb.getRoot() != null && this.findPathCount(path) == rb.getLevel()) {
     if (rb !=null && rb.getRoot() != null) {
-      if (this.findPathCount(path) > 1) {
+      if (alwaysReturnParent && this.findPathCount(path) > 1) {
         path = this.getNaturalRootFromFullPath(path);
       }
       ExternalStorage es = rb.get(path);
@@ -959,5 +959,51 @@ public class OverflowTable {
       o.key = path + o.key;
     recursivelyUpdatePath(o.left, path);
     recursivelyUpdatePath(o.right, path);
+  }
+
+  @Override
+  public OverflowTableNode buildOrAddBST(ExternalStorage[] es) {
+    // TODO Auto-generated method stub
+    return null;
+  }
+
+  @Override
+  public ExternalStorage findNode(String key) {
+    ExternalStorage es = null;
+    OverflowTableNode node = this.findNode(key, false, false, true);
+    if (node != null) {
+      es = node.getValue();
+    }
+    return es;
+  }
+
+  @Override
+  public ExternalStorage findLastMatchedNode(String key) {
+    // TODO Auto-generated method stub
+    return null;
+  }
+
+  @Override
+  public void insert(String key, ExternalStorage value) {
+    // TODO Auto-generated method stub
+    
+  }
+
+  @Override
+  public boolean remove(String key) {
+    // TODO Auto-generated method stub
+    return false;
+  }
+
+  @Override
+  public void display() {
+    // TODO Auto-generated method stub
+    
+  }
+
+  @Override
+  public ExternalStorage[] findAllValues(String key) {
+    // TODO Auto-generated method stub
+    return null;
   }
 }

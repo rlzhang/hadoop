@@ -528,14 +528,15 @@ public class RedBlackBST {
     *****************************************************************************/
     public static void main(String[] args) { 
         RedBlackBST st = new RedBlackBST();
-        
-        for (int i = 0; i < 100; i++) {
-          String path = "ThroughputBenchDir" + i;
+        //st.put("/a", null);
+        for (int i = 0; i < 10; i++) {
+          String path = "/b" + i;
           //bst.insert(path);
           st.put(path, null);
         }
-        //PrettyPrintBST2.prettyPrintTree(st.root);
-        //System.out.println(PrettyPrintBST2.sb.toString());
+        //st.put("/a/b1/e", null);
+        PrettyPrintBST2.prettyPrintTree(st.root);
+        System.out.println(PrettyPrintBST2.sb.toString());
         //for (String s : st.keys())
           //  StdOut.println(s + " " + st.get(s));
        // StdOut.println();
