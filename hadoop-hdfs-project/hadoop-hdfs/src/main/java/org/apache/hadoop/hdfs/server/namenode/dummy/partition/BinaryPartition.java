@@ -244,16 +244,19 @@ public class BinaryPartition {
    */
   private boolean ifGoodOnSourceNN(NamenodeTable nt, long sizeToMove,
       double freeSpace) {
-    long after = (nt.getFreeCapacity() + sizeToMove);
+   // long after = (nt.getFreeCapacity() + sizeToMove);
+    long totalSize = (long) ( NameNodeDummy.getNameNodeDummyInstance().getCountOfFilesDirectoriesAndBlocks() * EACH_NODE_SIZE / MB);
     System.out
-        .println("[ifGoodOnSourceNN] The source name node server: after move out has "
-            + after
+        .println("[ifGoodOnSourceNN] The source name node server: Plan to move "
+            + sizeToMove
             + "; expect free space "
-            + nt.getTotalCapacity() * freeSpace + ";" + "Cannot large than " + nt.getTotalCapacity()/2 + ", size to move out " + sizeToMove);
+            + nt.getTotalCapacity() * freeSpace + ";" + "Cannot large than " + (totalSize * MAX_MOVE_SPACE));
     //System.out.println("[ifGoodOnSourceNN]  Cannot large than " + nt.getTotalCapacity()/2 + ", size to move out " + sizeToMove);
-   
-    return (after > nt.getTotalCapacity() * freeSpace && sizeToMove < (nt
-        .getTotalCapacity() * MAX_MOVE_SPACE)) ? true : false;
+   //Old one calculate heap memory
+    //return (after > nt.getTotalCapacity() * freeSpace && sizeToMove < (nt
+      //  .getTotalCapacity() * MAX_MOVE_SPACE)) ? true : false;
+    //Calculate namespace size
+    return (sizeToMove > nt.getTotalCapacity() * GROWSPACE && sizeToMove < (totalSize * MAX_MOVE_SPACE)) ? true : false;
   }
 
   /**

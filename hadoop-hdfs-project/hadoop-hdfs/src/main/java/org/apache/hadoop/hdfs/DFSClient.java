@@ -239,7 +239,7 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
   public static final Log LOG = LogFactory.getLog(DFSClient.class);
   public static final long SERVER_DEFAULTS_VALIDITY_PERIOD = 60 * 60 * 1000L; // 1 hour
   static final int TCP_WINDOW_SIZE = 128 * 1024; // 128 KB
-
+  private AtomicBoolean isCached = new AtomicBoolean(Boolean.FALSE);
   private final Configuration conf;
   private final Conf dfsClientConf;
   final ClientProtocol namenode;
@@ -3228,6 +3228,14 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
    */
   public SaslDataTransferClient getSaslDataTransferClient() {
     return saslClient;
+  }
+
+  public boolean isCached() {
+    return isCached.get();
+  }
+
+  public void setIsCached(boolean isCached) {
+    this.isCached.set(isCached);
   }
 
 }

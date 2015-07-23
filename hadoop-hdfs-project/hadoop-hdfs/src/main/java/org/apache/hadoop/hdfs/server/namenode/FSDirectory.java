@@ -1466,18 +1466,18 @@ public class FSDirectory implements Closeable {
             getStoragePolicyID(curPolicy, parentStoragePolicy), snapshot,
             isRawPath, inodesInPath);
         
-        if(NameNodeDummy.useDistributedNN){
-          /** Add overflowing table **/
-          // Typically for client LS command.
-        	if(cur.isExternalLink()){
-        	  if (NameNodeDummy.DEBUG)
-        		  NameNodeDummy.debug("[FSDirectory]getListing: Found ExternalLink!!! cur:"+cur.getFullPathName());
-        		ExternalStorage[] es = cur.asExternalLink().getEsMap();
-        		if(es!=null){
-        			listing[i].setEs(es);
-        		}
-        	}
-        }
+//        if(NameNodeDummy.useDistributedNN){
+//          /** Add overflowing table **/
+//          // Typically for client LS command.
+//        	if(cur.isExternalLink()){
+//        	  if (NameNodeDummy.DEBUG)
+//        		  NameNodeDummy.debug("[FSDirectory]getListing: Found ExternalLink!!! cur:"+cur.getFullPathName());
+//        		ExternalStorage[] es = cur.asExternalLink().getEsMap();
+//        		if(es!=null){
+//        			listing[i].setEs(es);
+//        		}
+//        	}
+//        }
         
         listingCnt++;
         if (needLocation) {
@@ -1595,7 +1595,7 @@ public class FSDirectory implements Closeable {
       es = NameNodeDummy.getNameNodeDummyInstance().findRootValuesServer(NameNodeDummy.PRE);
     } else {
       //es = NameNodeDummy.getNameNodeDummyInstance().findExternalNNServer(srcs);
-      es = NameNodeDummy.getNameNodeDummyInstance().findAllValuesServer(srcs);
+      es = NameNodeDummy.getNameNodeDummyInstance().findAllValues(srcs);
     }
     //ExternalStorage[] es = NameNodeDummy.getNameNodeDummyInstance().getRootExternalStorages(srcs);
     //ExternalStorage[] es = NameNodeDummy.getNameNodeDummyInstance().findExternalNN(srcs);
@@ -1605,7 +1605,7 @@ public class FSDirectory implements Closeable {
     if (es == null){
       es = new ExternalStorage[1];
       //es[0] = NameNodeDummy.getNameNodeDummyInstance().findHostInPath(NameNodeDummy.getNameNodeDummyInstance().findNode(srcs, false));
-      es[0] = NameNodeDummy.getNameNodeDummyInstance().findLastMatchedNodeServer(srcs);
+      es[0] = NameNodeDummy.getNameNodeDummyInstance().findLastMatchedNode(srcs);
     }
     
     //ExternalStorage[] ess = NameNodeDummy.getNameNodeDummyInstance().findExternalNN(srcs);
