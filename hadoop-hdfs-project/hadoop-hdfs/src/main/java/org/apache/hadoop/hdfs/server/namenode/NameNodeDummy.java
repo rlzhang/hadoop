@@ -344,6 +344,7 @@ public class NameNodeDummy {
        //client = new INodeClient(server,
        //NameNodeDummy.TCP_PORT, NameNodeDummy.UDP_PORT);
       // Send sub-tree to another name node
+       if (client == null) System.err.println("Client should not be null!" + subTree);
        suc = client.sendINode(subTree, out, subTree.getParent().isRoot());
        System.out.println("(2)Client finished waiting server to response!");
        if (!auto)

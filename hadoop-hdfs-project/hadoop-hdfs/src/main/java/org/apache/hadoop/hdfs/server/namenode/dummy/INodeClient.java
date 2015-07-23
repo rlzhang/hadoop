@@ -53,7 +53,7 @@ public class INodeClient implements CallBack{
         && (client.client == null || !client.client.isConnected())) {
       nioClients.remove(server);
       if(client != null) client.close();
-      //client = null;
+      client = null;
     }
     if (client == null) {
       synchronized (obj) {
