@@ -63,8 +63,15 @@ public class BinaryPartition {
    * @param nt
    * @return
    */
-  public boolean ifStart(NamenodeTable nt) {
+  public boolean ifStartOld(NamenodeTable nt) {
     return (nt.getFreeCapacity() < nt.getTotalCapacity() * THRESHOLD) ? true
+        : false;
+  }
+  
+  
+  public boolean ifStart(NamenodeTable nt) {
+    long totalSize = getTotalNamespaceSize(); 
+    return (totalSize >= nt.getTotalCapacity() * THRESHOLD) ? true
         : false;
   }
 
@@ -232,6 +239,11 @@ public class BinaryPartition {
     return ((THRESHOLD + growSpace) * nt.getTotalCapacity() <= (nt
         .getFreeCapacity() - sizeToMove)) ? true : false;
   }
+  
+  private long getTotalNamespaceSize() {
+    long totalSize = (long) ( NameNodeDummy.getNameNodeDummyInstance().getCountOfFilesDirectoriesAndBlocks() * EACH_NODE_SIZE / MB);
+    return totalSize;
+  }
 
   /**
    * Check if match minimum requirement to move
@@ -245,7 +257,7 @@ public class BinaryPartition {
   private boolean ifGoodOnSourceNN(NamenodeTable nt, long sizeToMove,
       double freeSpace) {
    // long after = (nt.getFreeCapacity() + sizeToMove);
-    long totalSize = (long) ( NameNodeDummy.getNameNodeDummyInstance().getCountOfFilesDirectoriesAndBlocks() * EACH_NODE_SIZE / MB);
+    long totalSize = getTotalNamespaceSize();
     System.out
         .println("[ifGoodOnSourceNN] The source name node server: Plan to move "
             + sizeToMove
