@@ -535,8 +535,8 @@ public class RedBlackBST {
           st.put(path, null);
         }
         //st.put("/a/b1/e", null);
-        PrettyPrintBST2.prettyPrintTree(st.root);
-        System.out.println(PrettyPrintBST2.sb.toString());
+        //PrettyPrintBST2.prettyPrintTree(st.root);
+        //System.out.println(PrettyPrintBST2.sb.toString());
         //for (String s : st.keys())
           //  StdOut.println(s + " " + st.get(s));
        // StdOut.println();

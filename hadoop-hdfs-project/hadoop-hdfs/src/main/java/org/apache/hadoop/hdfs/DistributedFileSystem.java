@@ -917,6 +917,7 @@ public class DistributedFileSystem extends FileSystem {
           //nn.buildOrAddBSTAllClient(partialListing[i].getEs());
           //nn.buildOrAddRadixAllBSTClient(partialListing[i].getEs());
           hasOverflowTable = true;
+          break;
         }
       }
     }

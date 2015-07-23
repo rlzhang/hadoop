@@ -1101,6 +1101,12 @@ public class NameNodeDummy {
   }
   
   
+  public ExternalStorage findRadixTreeNodeServer(String key) {
+    IOverflowTable<ExternalStorage, RadixTreeNode> ot = RADIX_ROOT.get(OverflowTable.getNaturalRootFromFullPath(key));
+    ExternalStorage es = null;
+    if (ot != null) es = ot.findNode(key);
+    return es;
+  }
   public ExternalStorage findLastMatchedNodeClient(String key) {
     return this.findLastMatchedNode(key, RADIX_STATIC_ROOT);
   }
@@ -1111,7 +1117,14 @@ public class NameNodeDummy {
   
   public ExternalStorage findLastMatchedNode(String key, Map<String, IOverflowTable<ExternalStorage, RadixTreeNode>> root) {
     IOverflowTable<ExternalStorage, RadixTreeNode> ot = root.get(OverflowTable.getNaturalRootFromFullPath(key));
-    return ot == null ? null : ot.findLastMatchedNode(key);
+    ExternalStorage es =  (ot == null ? null : ot.findLastMatchedNode(key));
+    //System.out.println(key + ", es is " + (es == null ? null : es));
+    //Avoid this type of match: /a/b/c => /a or /a/b, /a/1201 => /a/120 or /a/1
+    if (es != null && es.getPath().length() <= key.length() && (key+"/").startsWith(es.getPath()+"/")) {
+      return es;
+    }
+    //return ot == null ? null : ot.findLastMatchedNode(key);
+    return null;
   }
   
   
