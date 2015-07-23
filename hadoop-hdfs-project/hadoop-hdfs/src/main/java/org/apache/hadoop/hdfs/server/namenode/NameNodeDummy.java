@@ -282,9 +282,9 @@ public class NameNodeDummy {
           + path);
       return false;
     }
-    isRun.getAndSet(true);
+    isRun.set(Boolean.TRUE);
     boolean isSuc = this.moveNSBase(fs, path, server, out, false);
-    isRun.getAndSet(false);
+    isRun.set(Boolean.FALSE);
     return isSuc;
   }
 
@@ -401,10 +401,10 @@ public class NameNodeDummy {
           + path);
       return false;
     }
-    isRun.getAndSet(true);
+    isRun.set(Boolean.TRUE);
     boolean isSuc =
         this.moveNSBase(this.getFSNamesystem(), path, server, null, true);
-    isRun.getAndSet(false);
+    isRun.set(Boolean.FALSE);
     return isSuc;
   }
 
@@ -1147,9 +1147,11 @@ public class NameNodeDummy {
     IOverflowTable<ExternalStorage, RadixTreeNode> ot =
         root.get(OverflowTable.getNaturalRootFromFullPath(key));
     ExternalStorage es = (ot == null ? null : ot.findLastMatchedNode(key));
+    //System.out.println(key + " :: " + es);
     //Avoid this type of match: /a/b/c => /a or /a/b, /a/1201 => /a/120 or /a/1
-    if (es != null && es.getPath().length() <= key.length()
-          && (es.getPath().length() == key.length() || key.charAt(es.getPath().length()) == '/')) {
+    int len = es == null ? 0 : es.getPath().length();
+    if (es != null && len <= key.length()
+          && (es.getPath().equals(key) || (key.length() > len && key.charAt(len) == '/'))) {
       return es;
     }
     return null;
@@ -1420,6 +1422,7 @@ public class NameNodeDummy {
   }
   
   public long getCountOfFilesDirectoriesAndBlocks() {
+    this.getFSNamesystem();
     long inodes = fs.dir.totalInodes();
     long blocks = fs.getBlocksTotal();
     return inodes+blocks;
