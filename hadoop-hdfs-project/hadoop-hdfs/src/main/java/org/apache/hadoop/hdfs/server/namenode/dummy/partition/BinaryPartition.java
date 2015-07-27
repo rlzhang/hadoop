@@ -71,7 +71,7 @@ public class BinaryPartition {
   
   public boolean ifStart(NamenodeTable nt) {
     long totalSize = getTotalNamespaceSize(); 
-    return (totalSize >= nt.getTotalCapacity() * THRESHOLD) ? true
+    return (totalSize >= (nt.getTotalCapacity() * THRESHOLD)) ? true
         : false;
   }
 
@@ -138,7 +138,7 @@ public class BinaryPartition {
    * better balance and reduce overflow table.
    */
   public List<ToMove> preDecision(Map<String, NamenodeTable> map,
-      INodeDirectory root) {
+      INodeDirectory root, String thisServer) {
     List<ToMove> returnValue = new ArrayList<ToMove>();
     List<INodeDirectory> external = new ArrayList<INodeDirectory>();
     assert (root != null);
@@ -185,7 +185,7 @@ public class BinaryPartition {
           + "move out " + inode.getFullPathName());
       if (!couldMove) {
         // Cannot move back, find another namenode.
-        nt = this.getMaxCapacityNamenode(map);
+        nt = this.getMaxCapacityNamenode(map, thisServer);
         couldMove = this.preDecisionInt(nt, this.getINodeSize(inode));
       }
       if (couldMove) {
@@ -305,7 +305,7 @@ public class BinaryPartition {
     tm.setDir(p.inode);
     tm.setType(2);
     tm.setStartFromLeft(p.isStartFromLeft);
-    tm.setTargetNN(this.getMaxCapacityNamenode(map));
+    tm.setTargetNN(this.getMaxCapacityNamenode(map,thisServer));
     //tm.setQueue(p.queue);
     tm.setQueue(p.allQueue);
     if (p.inode != null)
@@ -338,7 +338,7 @@ public class BinaryPartition {
       INode inode = roList.get(i);
       if (inode.isDirectory()) {
 
-        NamenodeTable max = this.getMaxCapacityNamenode(map);
+        NamenodeTable max = this.getMaxCapacityNamenode(map,thisServer);
         if (this.ifHasEnoughCapacityOnTargetNamenode(max,
             this.getINodeSize(inode), targetNNGrow)
             && this.ifGoodOnSourceNN(map.get(thisServer),
@@ -382,7 +382,7 @@ public class BinaryPartition {
     for (int i = 0; i < roList.size(); i++) {
       INode inode = roList.get(i);
       if (inode.isDirectory()) {
-        NamenodeTable max = this.getMaxCapacityNamenode(map);
+        NamenodeTable max = this.getMaxCapacityNamenode(map,thisServer);
         if (this.ifHasEnoughCapacityOnTargetNamenode(max,
             this.getINodeSize(inode), targetNNGrow)
             && this.ifGoodOnSourceNN(map.get(thisServer),
@@ -416,7 +416,7 @@ public class BinaryPartition {
     while (queue.peek() != null) {
       INodeDirectory inode = queue.poll();
       if (inode.isDirectory()) {
-        NamenodeTable max = this.getMaxCapacityNamenode(map);
+        NamenodeTable max = this.getMaxCapacityNamenode(map,thisServer);
         if (this.ifHasEnoughCapacityOnTargetNamenode(max,
             this.getINodeSize(inode), targetNNGrow)
             && this.ifGoodOnSourceNN(map.get(thisServer),
@@ -520,7 +520,7 @@ public class BinaryPartition {
         (long) (cur.getTotalCapacity() * FREESPACE) - cur.getFreeCapacity();
 
     //How much can accept on target name node
-    NamenodeTable tar = this.getMaxCapacityNamenode(map);
+    NamenodeTable tar = this.getMaxCapacityNamenode(map,thisServer);
     long end =
         (long) (tar.getFreeCapacity() -
             tar.getTotalCapacity() * FREESPACE);
@@ -562,7 +562,7 @@ public class BinaryPartition {
       if (this.ifGoodOnSourceNN(map.get(thisServer), size, FREESPACE)) {
         //if(this.ifGoodOnSourceNN(map.get(thisServer), size, FREESPACE)){
         if (this.ifHasEnoughCapacityOnTargetNamenode(
-            this.getMaxCapacityNamenode(map), size, GROWSPACE)) {
+            this.getMaxCapacityNamenode(map,thisServer), size, GROWSPACE)) {
           queue.add(inode);
           return inode;
         } else {
@@ -633,11 +633,19 @@ public class BinaryPartition {
     return size;
   }
 
-  private NamenodeTable getMaxCapacityNamenode(Map<String, NamenodeTable> map) {
-    if (map == null || map.size() == 0)
+  private NamenodeTable getMaxCapacityNamenode(Map<String, NamenodeTable> map, String thisServer) {
+    //Has to be 2+ servers.
+    if (map == null || map.size() < 2)
       return null;
     List<Entry<String, NamenodeTable>> sortedList = this.sortMap(map);
-    return sortedList.get(0).getValue();
+    NamenodeTable nt = sortedList.get(0).getValue();
+    if (nt.getNamenodeServer().equals(thisServer))
+    {
+      System.err.println("Source and target NN is same! " + thisServer);
+      nt = sortedList.get(1).getValue();
+    }
+      
+    return nt;
 
   }
 

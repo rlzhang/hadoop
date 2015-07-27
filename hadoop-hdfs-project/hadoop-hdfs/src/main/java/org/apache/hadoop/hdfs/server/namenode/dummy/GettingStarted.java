@@ -164,7 +164,8 @@ class ReportAndMoveNSTask extends TimerTask {
     boolean returnValue = false;
     List<ToMove> moveOut =
         bp.preDecision(client.getMap(), NameNodeDummy
-            .getNameNodeDummyInstance().getRoot());
+            .getNameNodeDummyInstance().getRoot(), NameNodeDummy
+            .getNameNodeDummyInstance().getNamenodeAddress().getHostName());
     if (moveOut == null)
       return returnValue;
     for (int i = 0; i < moveOut.size(); i++) {
