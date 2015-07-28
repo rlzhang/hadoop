@@ -120,14 +120,14 @@ public class TestBinaryPartition {
         NameNodeDummy.getNameNodeDummyInstance().printNSInfo(inode, 0, 10);
     display = display.replaceAll("&nbsp;", " ").replaceAll("<br/>", "\n");
     System.out.println(display);
-    bp.preDecision(map, inode.asDirectory());
+    bp.preDecision(map, inode.asDirectory(), "localhost");
   }
 
   public void testDivideOriginalTree() {
     INode inode = newINode(0, 2);
     create(10, inode);
     create(15, inode.asDirectory().getChildrenList(Snapshot.CURRENT_STATE_ID)
-        .get(2));
+        .get(1));
     create(2, inode.asDirectory().getChildrenList(Snapshot.CURRENT_STATE_ID)
         .get(6));
     Map<String, NamenodeTable> map = new HashMap<String, NamenodeTable>();
@@ -157,6 +157,7 @@ public class TestBinaryPartition {
     /**
      * Start test
      */
+    /**
     t.testIfStart();
 
     t.testSortMap();
@@ -164,8 +165,9 @@ public class TestBinaryPartition {
     t.testTreeMapSort();
 
     t.testPreDecision();
+    **/
     t.testDivideOriginalTree();
-    t.testPreDecision();
+    //t.testPreDecision();
   }
 
 }
