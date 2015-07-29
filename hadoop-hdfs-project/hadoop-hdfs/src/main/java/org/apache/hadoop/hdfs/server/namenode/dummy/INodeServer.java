@@ -200,39 +200,49 @@ public class INodeServer extends Thread {
         UpdateRequest request = (UpdateRequest) object;
         String[] srcs = request.getSrcs();
         for (int i = 0; i < srcs.length; i++) {
-          ExternalStorage es =
-              NameNodeDummy.getNameNodeDummyInstance().findRadixTreeNodeServer(srcs[i]);
+          ExternalStorage[] es =
+              NameNodeDummy.getNameNodeDummyInstance().findAllValues(srcs[i]);
               //NameNodeDummy.getNameNodeDummyInstance().findExternalNN_OLD(
                 //  srcs[i], false);
           if (es == null) {
             System.out.println("Try to insert new record for overflow table. Cannot find giving path " + srcs[i]);
-            NameNodeDummy.getNameNodeDummyInstance().buildOrAddRadixAllBST(new ExternalStorage[]{es});
+            NameNodeDummy.getNameNodeDummyInstance().buildOrAddRadixAllBST(es);
             continue;
           }
+          String local = NameNodeDummy.getNameNodeDummyInstance().getNamenodeAddress()
+              .getHostName();
           //If metadata belong to the same NN
-          if (request.getNewTargetNN().equals(
-              NameNodeDummy.getNameNodeDummyInstance().getNamenodeAddress()
-                  .getHostName())) {
-            if (NameNodeDummy.DEBUG)
-              System.out.println(es.getPath()
-                  + "[INodeServer]handleOverflowTableUpdate: Found useless table:"
-                  + srcs[i] + "; from " + es.getTargetNNServer() + " to "
-                  + request.getNewTargetNN());
-            NameNodeDummy.getNameNodeDummyInstance().removeFromRadixTree(es.getPath());
+          if (request.getNewTargetNN().equals(local)) {
+//            if (NameNodeDummy.DEBUG)
+//              System.out.println(es.getPath()
+//                  + "[INodeServer]handleOverflowTableUpdate: Found useless table:"
+//                  + srcs[i] + "; from " + es.getTargetNNServer() + " to "
+//                  + request.getNewTargetNN());
+            for (int j=0;j<es.length;j++){
+              if (request.getOldTargetNN().equals(es[j].getTargetNNServer()))
+                NameNodeDummy.getNameNodeDummyInstance().removeFromRadixTree(es[j].getPath());
+            }
+            
             //.removeExternalNN(
               //  es.getPath(), false);
             continue;
           }
-
-          es.setMoveTime(Time.now());
-          System.out
+          for (int j=0;j<es.length;j++){
+            if (request.getOldTargetNN().equals(es[j].getTargetNNServer())){
+              es[j].setMoveTime(Time.now());
+              System.out
               .println("[INodeServer]handleOverflowTableUpdate: update metadat:"
                   + srcs[i]
                   + "; from "
-                  + es.getTargetNNServer()
+                  + es[j].getTargetNNServer()
                   + " to "
                   + request.getNewTargetNN());
-          es.setTargetNNServer(request.getNewTargetNN());
+             es[j].setTargetNNServer(request.getNewTargetNN());
+            }
+              
+          }
+          
+         
         }
       }
 

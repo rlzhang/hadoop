@@ -571,10 +571,13 @@ public class INodeClient implements CallBack {
     while (ite.hasNext()) {
       //INode inode = roList.get(i);
       INode inode = ite.next();
-      srcs[i++] = parent + inode.getLocalName();
+      
+      srcs[i] = parent + inode.getLocalName();
       if (NameNodeDummy.DEBUG)
         System.out.println("[INodeClient]notifySourceNNUpdate: send path = "
             + srcs[i]);
+      i++;
+     
     }
     NameNodeDummy.getNameNodeDummyInstance().sendToNN(
         server,
