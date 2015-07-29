@@ -1141,6 +1141,13 @@ public class NameNodeDummy {
   public ExternalStorage findLastMatchedNode(String key) {
     return this.findLastMatchedNode(key, RADIX_ROOT);
   }
+  
+  public void removeFromRadixTree(String key) {
+    IOverflowTable<ExternalStorage, RadixTreeNode> ot =
+        RADIX_ROOT.get(OverflowTable.getNaturalRootFromFullPath(key));
+    if (ot != null)
+      ot.remove(key);
+  }
 
   public ExternalStorage findLastMatchedNode(String key,
       Map<String, IOverflowTable<ExternalStorage, RadixTreeNode>> root) {

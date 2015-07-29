@@ -201,10 +201,12 @@ public class INodeServer extends Thread {
         String[] srcs = request.getSrcs();
         for (int i = 0; i < srcs.length; i++) {
           ExternalStorage es =
-              NameNodeDummy.getNameNodeDummyInstance().findExternalNN_OLD(
-                  srcs[i], false);
+              NameNodeDummy.getNameNodeDummyInstance().findRadixTreeNodeServer(srcs[i]);
+              //NameNodeDummy.getNameNodeDummyInstance().findExternalNN_OLD(
+                //  srcs[i], false);
           if (es == null) {
-            System.out.println("Error!!! Cannot find giving path " + srcs[i]);
+            System.out.println("Try to insert new record for overflow table. Cannot find giving path " + srcs[i]);
+            NameNodeDummy.getNameNodeDummyInstance().buildOrAddRadixAllBST(new ExternalStorage[]{es});
             continue;
           }
           //If metadata belong to the same NN
@@ -216,8 +218,9 @@ public class INodeServer extends Thread {
                   + "[INodeServer]handleOverflowTableUpdate: Found useless table:"
                   + srcs[i] + "; from " + es.getTargetNNServer() + " to "
                   + request.getNewTargetNN());
-            NameNodeDummy.getNameNodeDummyInstance().removeExternalNN(
-                es.getPath(), false);
+            NameNodeDummy.getNameNodeDummyInstance().removeFromRadixTree(es.getPath());
+            //.removeExternalNN(
+              //  es.getPath(), false);
             continue;
           }
 

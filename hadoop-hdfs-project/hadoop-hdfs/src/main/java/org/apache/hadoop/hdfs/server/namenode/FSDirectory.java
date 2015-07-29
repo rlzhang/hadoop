@@ -2128,7 +2128,7 @@ public class FSDirectory implements Closeable {
    */
   private void verifyMaxDirItems(INode[] pathComponents, int pos)
       throws MaxDirectoryItemsExceededException {
-
+    if (pathComponents[pos-1] == null) return;
     final INodeDirectory parent = pathComponents[pos-1].asDirectory();
     final int count = parent.getChildrenList(Snapshot.CURRENT_STATE_ID).size();
     if (count >= maxDirItems) {
