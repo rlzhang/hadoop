@@ -206,7 +206,8 @@ public class INodeServer extends Thread {
                 //  srcs[i], false);
           if (es == null) {
             System.out.println("Try to insert new record for overflow table. Cannot find giving path " + srcs[i]);
-            NameNodeDummy.getNameNodeDummyInstance().buildOrAddRadixAllBST(es);
+            ExternalStorage e = new ExternalStorage(200, request.getNewTargetNN(), "", srcs[i], request.getSourceNNServer());
+            NameNodeDummy.getNameNodeDummyInstance().buildOrAddRadixAllBST(new ExternalStorage[]{e});
             continue;
           }
           String local = NameNodeDummy.getNameNodeDummyInstance().getNamenodeAddress()

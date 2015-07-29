@@ -79,7 +79,7 @@ public class NameNodeDummy {
   public static boolean useDistributedNN = true;
   public static boolean useCache = true;
   public static boolean TEST = false;
-  public final static boolean DEBUG = false;
+  public final static boolean DEBUG = true;
   public final static boolean INFOR = true;
   public final static boolean WARN = true;
   public final static boolean CreateInMemoryTable = true;
@@ -825,6 +825,17 @@ public class NameNodeDummy {
     this.fs.dir.addToInodeMap(ie);
   }
 
+  /**
+   * Get moved namespace after insert overflow table.
+   * @return
+   */
+  public INodeDirectory getMovedNamespace(INode inode) {
+    INodeDirectory dir = inode.getParent();
+    if (dir.isRoot()) {
+      return inode.asDirectory();
+    }
+    return getMovedNamespace(dir);
+  }
   /**
    * Temporary store INodeExternalLink
    */

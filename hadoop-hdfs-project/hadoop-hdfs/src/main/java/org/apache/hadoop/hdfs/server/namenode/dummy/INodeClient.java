@@ -559,15 +559,28 @@ public class INodeClient implements CallBack {
   private void notifySourceNNUpdate(JspWriter out) throws Exception {
     if (!subTree.isDirectory())
       throw new Exception("Unknow Error!");
-    String path = this.subTree.getLocalName();
+//    String path = this.subTree.getLocalName();
+//    String server = path.substring(INodeServer.PREFIX.length(), path.length());
+    
+    String path = nnd.getMovedNamespace(this.subTree).getLocalName();
     String server = path.substring(INodeServer.PREFIX.length(), path.length());
+    
     ReadOnlyList<INode> roList =
         this.subTree.asDirectory().getChildrenList(Snapshot.CURRENT_STATE_ID);
-    String[] srcs = new String[roList.size()];
+    boolean isReservedNamespace = this.subTree.getLocalName().startsWith(INodeServer.PREFIX) ? true : false;
+    String[] srcs = null;
+    if (isReservedNamespace) {
+      srcs = new String[roList.size()];
+    } else {
+      srcs =  new String[roList.size() + 1];
+    }
     String parent = this.subTree.getParent().getFullPathName();
     Iterator<INode> ite = roList.iterator();
     //for (int i = 0; i < roList.size(); i++) {
     int i = 0;
+    if (!isReservedNamespace) {
+      srcs[i++] = this.subTree.getFullPathName();
+    }
     while (ite.hasNext()) {
       //INode inode = roList.get(i);
       INode inode = ite.next();
@@ -579,6 +592,7 @@ public class INodeClient implements CallBack {
       i++;
      
     }
+    
     NameNodeDummy.getNameNodeDummyInstance().sendToNN(
         server,
         out,
