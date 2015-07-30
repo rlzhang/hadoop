@@ -350,8 +350,12 @@ public class INodeClient implements CallBack {
 
       MoveNSRequest request = new MoveNSRequest();
       request.setOperation(0);
-      if (subTree.getId() == 1
-          && subTree.getLocalName().startsWith(INodeServer.PREFIX)) {
+      INodeDirectory i = nnd.getMovedNamespace(subTree);
+      if (i.getId() == 1
+          //&& subTree.getLocalName().startsWith(INodeServer.PREFIX)) {
+          && i.getLocalName().startsWith(INodeServer.PREFIX)) {
+        if (NameNodeDummy.DEBUG)
+          System.out.println("Found existing namespace: " + subTree.getFullPathName());
         existingNamespace = true;
         request.setNamespace(subTree.getLocalName());
       }

@@ -832,6 +832,8 @@ public class NameNodeDummy {
   public INodeDirectory getMovedNamespace(INode inode) {
     INodeDirectory dir = inode.getParent();
     if (dir.isRoot()) {
+      if (NameNodeDummy.DEBUG)
+        System.out.println("[getMovedNamespace] Found namespace: " + inode.getFullPathName());
       return inode.asDirectory();
     }
     return getMovedNamespace(dir);
