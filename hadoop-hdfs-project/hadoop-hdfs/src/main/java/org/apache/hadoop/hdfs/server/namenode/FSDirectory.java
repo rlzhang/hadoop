@@ -2192,6 +2192,7 @@ public class FSDirectory implements Closeable {
     updateCount(iip, pos,
         counts.get(Quota.NAMESPACE), counts.get(Quota.DISKSPACE), checkQuota);
     boolean isRename = (child.getParent() != null);
+    if (inodes[pos-1] == null) return false; // Avoid not created folders.
     final INodeDirectory parent = inodes[pos-1].asDirectory();
     boolean added;
     try {
