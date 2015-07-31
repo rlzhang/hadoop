@@ -569,33 +569,50 @@ public class INodeClient implements CallBack {
     String path = nnd.getMovedNamespace(this.subTree).getLocalName();
     String server = path.substring(INodeServer.PREFIX.length(), path.length());
     
-    ReadOnlyList<INode> roList =
-        this.subTree.asDirectory().getChildrenList(Snapshot.CURRENT_STATE_ID);
+   
     boolean isReservedNamespace = this.subTree.getLocalName().startsWith(INodeServer.PREFIX) ? true : false;
     String[] srcs = null;
     if (isReservedNamespace) {
+      ReadOnlyList<INode> roList =
+          this.subTree.asDirectory().getChildrenList(Snapshot.CURRENT_STATE_ID);
       srcs = new String[roList.size()];
-    } else {
-      srcs =  new String[roList.size() + 1];
-    }
-    String parent = this.subTree.getParent().getFullPathName();
-    Iterator<INode> ite = roList.iterator();
-    //for (int i = 0; i < roList.size(); i++) {
-    int i = 0;
-    if (!isReservedNamespace) {
-      srcs[i++] = this.subTree.getFullPathName();
-    }
-    while (ite.hasNext()) {
-      //INode inode = roList.get(i);
-      INode inode = ite.next();
+      String parent = this.subTree.getParent().getFullPathName();
+      Iterator<INode> ite = roList.iterator();
+      //for (int i = 0; i < roList.size(); i++) {
+      int i = 0;
+      while (ite.hasNext()) {
+        //INode inode = roList.get(i);
+        INode inode = ite.next();
+        
+        srcs[i] = parent + inode.getLocalName();
+        if (NameNodeDummy.DEBUG)
+          System.out.println("[INodeClient]notifySourceNNUpdate: send path = "
+              + srcs[i]);
+        i++;
+      }
       
-      srcs[i] = parent + inode.getLocalName();
-      if (NameNodeDummy.DEBUG)
-        System.out.println("[INodeClient]notifySourceNNUpdate: send path = "
-            + srcs[i]);
-      i++;
-     
+    } else {
+      srcs =  new String[1];
+      srcs[0] = this.subTree.getFullPathName();
     }
+//    String parent = this.subTree.getParent().getFullPathName();
+//    Iterator<INode> ite = roList.iterator();
+//    //for (int i = 0; i < roList.size(); i++) {
+//    int i = 0;
+//    if (!isReservedNamespace) {
+//      srcs[i++] = this.subTree.getFullPathName();
+//    }
+//    while (ite.hasNext()) {
+//      //INode inode = roList.get(i);
+//      INode inode = ite.next();
+//      
+//      srcs[i] = parent + inode.getLocalName();
+//      if (NameNodeDummy.DEBUG)
+//        System.out.println("[INodeClient]notifySourceNNUpdate: send path = "
+//            + srcs[i]);
+//      i++;
+//     
+//    }
     
     NameNodeDummy.getNameNodeDummyInstance().sendToNN(
         server,
