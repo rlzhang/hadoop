@@ -89,8 +89,8 @@ public class UpdateNIOData extends Thread {
       map.put(request[i].getKey(), request[i]);
     }
 
-    System.out.println("Server received handleMapRequestArray size is "
-        + map.size());
+    //System.out.println("Server received handleMapRequestArray size is "
+      //  + map.size());
     this.check();
   }
 
@@ -181,7 +181,7 @@ public class UpdateNIOData extends Thread {
           }
           //Display tree.
           //System.out.println(Tools.display(inode, 10, true));
-          map.clear();
+          
           try {
             if (!INodeServer.isTest)
               NameNodeDummy.getNameNodeDummyInstance().saveNamespace();
@@ -190,6 +190,8 @@ public class UpdateNIOData extends Thread {
             e.printStackTrace();
           } catch (IOException e) {
             e.printStackTrace();
+          } finally {
+            map.clear();
           }
           // Should update here.
           this.updateQuota();

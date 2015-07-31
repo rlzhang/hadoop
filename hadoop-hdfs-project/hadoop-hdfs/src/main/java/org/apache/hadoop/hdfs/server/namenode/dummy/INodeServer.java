@@ -261,7 +261,7 @@ public class INodeServer extends Thread {
         }
 
         int bytesCount = connection.sendTCP(response);
-        System.out.println(bytesCount + " bytes.Send poolid to client "
+        System.out.println(bytesCount + " bytes. Send poolid to client "
             + response.getPoolId());
       }
 
@@ -270,6 +270,10 @@ public class INodeServer extends Thread {
         if (NameNodeDummy.DEBUG)
           System.out.println("Received data from client(MapRequestArray) " + count.getAndIncrement());
         //INodeServer.threadPool(100);
+        if (root == null) {
+          root = nameNodeDummy.getRoot().asDirectory();
+          parent = root;
+        }
         UpdateNIOData update =
             new UpdateNIOData(object, parent, listSize, connection);
         //INodeServer.getThreadPool().execute(update);
@@ -377,6 +381,7 @@ public class INodeServer extends Thread {
       private void handleMoveNSRequest(Connection connection, Object object) {
 
         MoveNSRequest request = (MoveNSRequest) object;
+        System.out.println("Server try to accept new namespace: " + request.getFullPath());
         listSize = request.getListSize();
         if (root == null)
           root = nameNodeDummy.getRoot().asDirectory();
