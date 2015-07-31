@@ -146,6 +146,7 @@ class ReportAndMoveNSTask extends TimerTask {
         System.err
         .println("Cannot start to move namespace, you have too small memory left. Free memory is "
             + nt.getFreeCapacity());
+        GettingStarted.isRun = false;
         return;
       } 
       else
