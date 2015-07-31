@@ -26,7 +26,7 @@ public class GettingStarted extends Thread {
   final static int GB = MB * 1024;
 
   //Minimal free memory to start moving... , MB.
-  final static long MIN_MEMEORY = 1024L;
+  final static long MIN_MEMEORY = 900L;
   long freeMem = 0;
   Map<String, NamenodeTable> memoryMap;
 
