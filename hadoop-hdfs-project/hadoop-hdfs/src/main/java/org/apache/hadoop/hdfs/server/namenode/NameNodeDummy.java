@@ -1170,8 +1170,11 @@ public class NameNodeDummy {
     //System.out.println(key + " :: " + es);
     //Avoid this type of match: /a/b/c => /a or /a/b, /a/1201 => /a/120 or /a/1
     int len = es == null ? 0 : es.getPath().length();
-    if (es != null && len <= key.length()
-          && (es.getPath().equals(key) || (key.length() > len && key.charAt(len) == '/'))) {
+    //if (es != null && len <= key.length()
+      //    && (es.getPath().equals(key) || (key.length() > len && key.charAt(len) == '/'))) {
+      
+    if (es != null && es.getPath().length() <= key.length() && (es.getPath().equals(key) || (key.length() > len && key.startsWith(es.getPath()) && key.charAt(len) == '/'))) {
+
       return es;
     }
     return null;
