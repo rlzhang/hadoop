@@ -149,6 +149,7 @@ public class INodeClient implements CallBack {
    * @throws IOException
    */
   public void connect(int writeBuffer) throws IOException {
+    System.out.println("[INodeClient] Buffer size is " + writeBuffer);
     this.writeBuffer = writeBuffer;
     if (this.client != null)
       this.client.close();
@@ -181,13 +182,15 @@ public class INodeClient implements CallBack {
         super.disconnected(c);
       }
     });
+    
+    // Add it after added listener
+    INodeServer.register(client.getKryo());
 
     client.setKeepAliveTCP(INodeServer.KEEP_ALIVE);
 
     client.setTimeout(INodeServer.TIME_OUT);
 
-    // Add it after added listener
-    INodeServer.register(client.getKryo());
+    
 
     client.start();
     client.connect(INodeServer.TIME_OUT, server, tcpPort, udpPort);
@@ -242,7 +245,7 @@ public class INodeClient implements CallBack {
             .println(retry + "-----Retry now ..." + this.client == null ? "null"
                 : this.client.isConnected());
 
-        //if (this.client == null || !this.client.isConnected())
+        if (this.client == null || !this.client.isConnected())
         try {
           this.close();
           this.connect(writeBuffer);
