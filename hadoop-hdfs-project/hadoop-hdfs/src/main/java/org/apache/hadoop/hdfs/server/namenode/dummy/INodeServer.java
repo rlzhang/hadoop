@@ -381,7 +381,7 @@ public class INodeServer extends Thread {
       private void handleMoveNSRequest(Connection connection, Object object) {
 
         MoveNSRequest request = (MoveNSRequest) object;
-        System.out.println("Server try to accept new namespace: " + request.getFullPath());
+        //System.out.println("Server try to accept new namespace: " + request.getFullPath());
         listSize = request.getListSize();
         if (root == null)
           root = nameNodeDummy.getRoot().asDirectory();
