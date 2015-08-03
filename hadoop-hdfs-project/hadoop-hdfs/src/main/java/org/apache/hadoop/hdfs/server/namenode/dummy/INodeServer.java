@@ -204,7 +204,8 @@ public class INodeServer extends Thread {
               NameNodeDummy.getNameNodeDummyInstance().findAllValues(srcs[i]);
               //NameNodeDummy.getNameNodeDummyInstance().findExternalNN_OLD(
                 //  srcs[i], false);
-          if (es == null) {
+          NameNodeDummy.info("[handleOverflowTableUpdate] Try to update existing overflow table " + srcs[i]);
+          if (es == null || es.length == 0) {
             System.out.println("Try to insert new record for overflow table. Cannot find giving path " + srcs[i]);
             ExternalStorage e = new ExternalStorage(200, request.getNewTargetNN(), "", srcs[i], request.getSourceNNServer());
             NameNodeDummy.getNameNodeDummyInstance().buildOrAddRadixAllBST(new ExternalStorage[]{e});

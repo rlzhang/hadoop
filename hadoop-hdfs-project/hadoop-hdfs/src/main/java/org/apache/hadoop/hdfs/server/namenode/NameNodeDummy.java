@@ -1461,9 +1461,9 @@ public class NameNodeDummy {
     if (ess == null) return null;
     List<ExternalStorage> list = new ArrayList<ExternalStorage>();
     int count = this.calculateSlashCount(parent);
-    count++;
     for (int i = 0; i < ess.length; i++) {
-      if (calculateSlashCount(ess[i].getPath()) == count) {
+      int splash = calculateSlashCount(ess[i].getPath());
+      if ( splash == count || splash == count +1) {
         list.add(ess[i]);
       }
     }
