@@ -459,6 +459,7 @@ public class RadixTreeImpl<T> implements RadixTree<T>, Formattable {
     RadixTreeNode<T> result = null;
     int numberOfMatchingCharacters = node.getNumberOfMatchingCharacters(key);
     //RadixTreeNode<T> lastMatch = node;
+    //Exactly match!
     if (numberOfMatchingCharacters == key.length()
         && numberOfMatchingCharacters <= node.getKey().length()) {
       //System.out.println("Match " + node.getParent());
@@ -468,13 +469,16 @@ public class RadixTreeImpl<T> implements RadixTree<T>, Formattable {
             .getKey().length())) {
       String newText = key.substring(numberOfMatchingCharacters, key.length());
       for (RadixTreeNode<T> child : node.getChildren()) {
-        if (child.getKey().startsWith(newText.charAt(0) + "")) {
+        char a = newText.charAt(0);
+        //System.out.println(">>>" + child.getKey() + ":: " + newText.charAt(0));
+        if (child.getKey().startsWith(a + "")) {
+          if (a == '/' && child.getKey().length() > 1 && newText.length() > 1 && newText.charAt(1) != child.getKey().charAt(1)) break;
           result = lastMatchNode(newText, child);
           break;
         }
       }
     }
-
+    //System.out.println(node.getKey() + ">>>real?" + node.isReal());
     return result == null ? node : result;
   }
 
