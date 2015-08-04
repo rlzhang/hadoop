@@ -49,7 +49,7 @@ public class RadixTreeOverflowTable implements IOverflowTable<ExternalStorage, R
   @Override
   public ExternalStorage[] findAllValues(String key) {
      List<ExternalStorage> list = tree.searchPrefix(key, Integer.MAX_VALUE);
-     ExternalStorage es = tree.find(key);
+     //ExternalStorage es = tree.find(key);
 //     System.out.println("Found es " + list);
 //     if (es != null) list.add(es);
      if (list == null) return null;

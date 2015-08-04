@@ -1037,8 +1037,11 @@ public class NameNodeDummy {
       new Exception("Wrong path set!").printStackTrace();
       return null;
     }
-    if (NameNodeDummy.DEBUG)
-      System.out.println("[NamenodeDummy] buildOrAddBST: Get key " + key);
+    if (NameNodeDummy.DEBUG){
+      for(int i=0;i<es.length;i++)
+      System.out.println("[NamenodeDummy] buildOrAddBST: Get key " + key + "; value " + es[i]);
+    }
+      
     IOverflowTable node = root.get(key);
     if (node == null) {
       node = new RadixTreeOverflowTable();
@@ -1456,16 +1459,24 @@ public class NameNodeDummy {
    * @param path
    * @return
    */
-  public synchronized ExternalStorage[] findChildren(String parent) {
+  public synchronized ExternalStorage[] findChildren(String parent, boolean includeSelf) {
     ExternalStorage[] ess = this.findAllValuesInRadixTree(parent, RADIX_ROOT);
     if (ess == null) return null;
     List<ExternalStorage> list = new ArrayList<ExternalStorage>();
     int count = this.calculateSlashCount(parent);
+    count++;
     for (int i = 0; i < ess.length; i++) {
       int splash = calculateSlashCount(ess[i].getPath());
-      if ( splash == count || splash == count +1) {
-        list.add(ess[i]);
+      if (includeSelf) {
+        if ( splash == count || splash == count -1) {
+          list.add(ess[i]);
+        }
+      } else {
+        if ( splash == count) {
+          list.add(ess[i]);
+        }
       }
+      
     }
     ExternalStorage[] es = new ExternalStorage[list.size()];
     return list.toArray(es);
@@ -1608,6 +1619,23 @@ public class NameNodeDummy {
 
   }
 
+  private int getSecondSplashIndex(String path){
+    //if (path == null || path.length() == 0) return -1;
+    int index = 0;
+    for(int i = 0; i< path.length(); i++){
+      if (path.charAt(i) == '/'){
+        index++;
+        if (index == 2) return i;
+      }
+    }
+    return -1;
+  }
+  public String removeNamespace(String path){
+    if (path.startsWith(INodeServer.PREFIX_SLASH)){
+      return path.substring(getSecondSplashIndex(path),path.length());
+    }
+    return path;
+  }
   public static void main(String[] args) {
     System.out.println(NameNodeDummy.getNameNodeDummyInstance()
         .findExternalNN_OLD("/data1/test/tt", true));

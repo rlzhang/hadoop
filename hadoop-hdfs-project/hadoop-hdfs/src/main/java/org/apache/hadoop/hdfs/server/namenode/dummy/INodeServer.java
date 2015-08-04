@@ -53,6 +53,7 @@ public class INodeServer extends Thread {
   public static boolean isTest = false;
   public static final Log LOG = LogFactory.getLog(INodeServer.class.getName());
   public final static String PREFIX = "distr_from_";
+  public final static String PREFIX_SLASH = "/distr_from_";
   public final static int WRITE_BUFFER_MB = 1024 * 1024;
   public final static int OBJECT_BUFFER = 1024 * 1024 * 9;
   //Factor from namenode size => memory MB.
@@ -206,8 +207,8 @@ public class INodeServer extends Thread {
                 //  srcs[i], false);
           NameNodeDummy.info("[handleOverflowTableUpdate] Try to update existing overflow table " + srcs[i]);
           if (es == null || es.length == 0) {
-            System.out.println("Try to insert new record for overflow table. Cannot find giving path " + srcs[i]);
             ExternalStorage e = new ExternalStorage(200, request.getNewTargetNN(), "", srcs[i], request.getSourceNNServer());
+            System.out.println("Try to insert new record for overflow table. Cannot find giving path " + srcs[i] + "; es = " + e);
             NameNodeDummy.getNameNodeDummyInstance().buildOrAddRadixAllBST(new ExternalStorage[]{e});
             continue;
           }

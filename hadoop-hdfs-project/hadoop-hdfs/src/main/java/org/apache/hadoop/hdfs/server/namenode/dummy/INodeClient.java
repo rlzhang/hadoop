@@ -558,6 +558,8 @@ public class INodeClient implements CallBack {
 
     return success;
   }
+  
+ 
 
   /**
    * notify source namenode update overflowing table.
@@ -587,7 +589,7 @@ public class INodeClient implements CallBack {
         //INode inode = roList.get(i);
         INode inode = ite.next();
         
-        srcs[i] = parent + inode.getLocalName();
+        srcs[i] = nnd.removeNamespace(parent + inode.getLocalName());
         if (NameNodeDummy.DEBUG)
           System.out.println("[INodeClient]notifySourceNNUpdate: send path = "
               + srcs[i]);
@@ -596,7 +598,7 @@ public class INodeClient implements CallBack {
       
     } else {
       srcs =  new String[1];
-      srcs[0] = this.subTree.getFullPathName();
+      srcs[0] = nnd.removeNamespace(this.subTree.getFullPathName());
     }
 //    String parent = this.subTree.getParent().getFullPathName();
 //    Iterator<INode> ite = roList.iterator();
