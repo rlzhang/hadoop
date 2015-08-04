@@ -465,7 +465,11 @@ public class RadixTreeImpl<T> implements RadixTree<T>, Formattable {
   private boolean isLegal(String p1, String p2) {
     int l1 = NameNodeDummy.getNameNodeDummyInstance().calculateSlashCount(p1);
     int l2 = NameNodeDummy.getNameNodeDummyInstance().calculateSlashCount(p2);
-    return (l1 == l2 && p1.length() != p2.length() ? false : true);
+    if ((l1 == l2 && p1.length() != p2.length()) || p1.startsWith(p2) && (p1.length() > p2.length() && p1.charAt(p2.length()) != '/')){
+      return false;
+    }
+    return true;
+    //return (l1 == l2 && p1.length() != p2.length() ? false : true);
   }
   //private RadixTreeNode<T> lastMatch = null;
 
@@ -488,11 +492,14 @@ public class RadixTreeImpl<T> implements RadixTree<T>, Formattable {
         if (child.getKey().startsWith(a + "")) {
           //if (a == '/' && child.getKey().length() > 1 && newText.length() > 1 && newText.charAt(1) != child.getKey().charAt(1)) break;
           result = lastMatchNode(newText, child);
+         
           break;
         }
       }
     }
-    //System.out.println("[lastMatchNode] key " + key + ", node is " + node.getKey());
+    
+    //System.out.println("[lastMatchNode] key " + key + ", node is " + node.getKey() + ", parent:" + (isLegal(key,node.getKey()) ? node : node.getParent()));
+    
     return result == null ? (isLegal(key,node.getKey()) ? node : node.getParent()) : result;
   }
 
