@@ -428,12 +428,22 @@ public class RadixTreeImpl<T> implements RadixTree<T>, Formattable {
     return "";
   }
 
+  public T lastMatchNode(String key) {
+    
+    RadixTreeNode<T> tmp = this.lastMatchNodeBase(key);
+    return tmp == null ? null : tmp.getValue();
+  }
+  
+  public RadixTreeNode<T> lastMatchNodeInTree(String key) {
+    return this.lastMatchNodeBase(key);
+  }
+  
   /**
    * If path not in radix tree, return the last matched parent node.
    * @param key
    * @return
    */
-  public T lastMatchNode(String key) {
+  private RadixTreeNode<T> lastMatchNodeBase(String key) {
     //lastMatch = null;
     RadixTreeNode<T> tmp = this.lastMatchNode(key, root);
 //    if (tmp == null && lastMatch != null) {
@@ -453,7 +463,7 @@ public class RadixTreeImpl<T> implements RadixTree<T>, Formattable {
 //      }
       //System.out.println(key.endsWith(tmp.getKey()) + key + ", 2)lastMatchNode is " + (tmp == null ? null : tmp.getKey()));
     }
-    return tmp == null ? null : tmp.getValue();
+    return tmp;
   }
 
   /**
@@ -465,7 +475,7 @@ public class RadixTreeImpl<T> implements RadixTree<T>, Formattable {
   private boolean isLegal(String p1, String p2) {
     int l1 = NameNodeDummy.getNameNodeDummyInstance().calculateSlashCount(p1);
     int l2 = NameNodeDummy.getNameNodeDummyInstance().calculateSlashCount(p2);
-    if ((l1 == l2 && p1.length() != p2.length()) || p1.startsWith(p2) && (p1.length() > p2.length() && p1.charAt(p2.length()) != '/')){
+    if ((l1 == l2 && p1.length() != p2.length()) || (p1.startsWith(p2) && (p1.length() > p2.length() && p1.charAt(p2.length()) != '/'))){
       return false;
     }
     return true;
@@ -480,7 +490,10 @@ public class RadixTreeImpl<T> implements RadixTree<T>, Formattable {
     //Exactly match!
     if (numberOfMatchingCharacters == key.length()
         && numberOfMatchingCharacters <= node.getKey().length()) {
-      //System.out.println("Match " + node.getParent());
+//      System.out.println(key + " vs " + node.getKey() + " : Match " + node.getParent());
+//      if (node.getKey().length() > key.length() && node.getKey().charAt(key.length()) != '/'){
+//        System.err.println("Not legal natural node " + node.getKey());
+//      } else
       result = node;
     } else if (node.getKey().equals("") == true
         || (numberOfMatchingCharacters < key.length() && numberOfMatchingCharacters >= node
@@ -499,8 +512,17 @@ public class RadixTreeImpl<T> implements RadixTree<T>, Formattable {
     }
     
     //System.out.println("[lastMatchNode] key " + key + ", node is " + node.getKey() + ", parent:" + (isLegal(key,node.getKey()) ? node : node.getParent()));
-    
-    return result == null ? (isLegal(key,node.getKey()) ? node : node.getParent()) : result;
+    return result == null ? node : result;
+    //return result == null ? (isLegal(key,node.getKey()) ? node : this.getParent(node.getParent(),key)) : result;
   }
 
+  private RadixTreeNode<T> getParent(RadixTreeNode<T> node, String key) {
+    while(true){
+      if(node == null || (node.isReal() && this.isLegal(key, node.getKey()))){
+        System.out.println("Found legal node " + node.getKey());
+        return node;
+      }
+      node = node.getParent();
+    }
+  }
 }

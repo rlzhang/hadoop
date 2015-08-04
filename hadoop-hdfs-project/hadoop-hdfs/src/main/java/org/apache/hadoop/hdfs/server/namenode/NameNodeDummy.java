@@ -833,11 +833,13 @@ public class NameNodeDummy {
     INodeDirectory dir = inode.getParent();
     if (dir.isRoot()) {
       if (NameNodeDummy.DEBUG)
-        System.out.println("[getMovedNamespace] Found namespace: " + inode.getFullPathName());
+        System.out.println("[getMovedNamespace] Found namespace: "
+            + inode.getFullPathName());
       return inode.asDirectory();
     }
     return getMovedNamespace(dir);
   }
+
   /**
    * Temporary store INodeExternalLink
    */
@@ -1037,11 +1039,12 @@ public class NameNodeDummy {
       new Exception("Wrong path set!").printStackTrace();
       return null;
     }
-    if (NameNodeDummy.DEBUG){
-      for(int i=0;i<es.length;i++)
-      System.out.println("[NamenodeDummy] buildOrAddBST: Get key " + key + "; value " + es[i]);
+    if (NameNodeDummy.DEBUG) {
+      for (int i = 0; i < es.length; i++)
+        System.out.println("[NamenodeDummy] buildOrAddBST: Get key " + key
+            + "; value " + es[i]);
     }
-      
+
     IOverflowTable node = root.get(key);
     if (node == null) {
       node = new RadixTreeOverflowTable();
@@ -1157,7 +1160,7 @@ public class NameNodeDummy {
   public ExternalStorage findLastMatchedNode(String key) {
     return this.findLastMatchedNode(key, RADIX_ROOT);
   }
-  
+
   public void removeFromRadixTree(String key) {
     IOverflowTable<ExternalStorage, RadixTreeNode> ot =
         RADIX_ROOT.get(OverflowTable.getNaturalRootFromFullPath(key));
@@ -1169,14 +1172,49 @@ public class NameNodeDummy {
       Map<String, IOverflowTable<ExternalStorage, RadixTreeNode>> root) {
     IOverflowTable<ExternalStorage, RadixTreeNode> ot =
         root.get(OverflowTable.getNaturalRootFromFullPath(key));
+    RadixTreeNode<ExternalStorage> rt = ot.findLastMatchedNodeInTree(key);
+    //System.out.println(key + " [::] " + (rt == null ? "null" : rt.getValue()));
+    ExternalStorage es = null;
+    if (rt != null) {
+
+      while (true) {
+         es = rt.getValue();
+        if (es.getPath().equals(key)) {
+          //Good to go
+          break;
+        } else if (es.getPath().length() > key.length()) {
+          //Search path smaller than real path
+          rt = rt.getParent();
+        } else {
+          //Search path (key) longer than real path (es.getPath)
+
+          if (key.startsWith(es.getPath())
+              && key.charAt(es.getPath().length()) == '/') {
+            break;
+          }
+          rt = rt.getParent();
+        }
+      }
+
+    }
+    return es;
+  }
+
+  private ExternalStorage findLastMatchedNodeOld(String key,
+      Map<String, IOverflowTable<ExternalStorage, RadixTreeNode>> root) {
+    IOverflowTable<ExternalStorage, RadixTreeNode> ot =
+        root.get(OverflowTable.getNaturalRootFromFullPath(key));
     ExternalStorage es = (ot == null ? null : ot.findLastMatchedNode(key));
-    //System.out.println(key + " :: " + es);
+    System.out.println(key + " :: " + es);
     //Avoid this type of match: /a/b/c => /a or /a/b, /a/1201 => /a/120 or /a/1
     int len = es == null ? 0 : es.getPath().length();
     //if (es != null && len <= key.length()
-      //    && (es.getPath().equals(key) || (key.length() > len && key.charAt(len) == '/'))) {
-      
-    if (es != null && es.getPath().length() <= key.length() && (es.getPath().equals(key) || (key.length() > len && key.startsWith(es.getPath()) && key.charAt(len) == '/'))) {
+    //    && (es.getPath().equals(key) || (key.length() > len && key.charAt(len) == '/'))) {
+
+    if (es != null
+        && es.getPath().length() <= key.length()
+        && (es.getPath().equals(key) || (key.length() > len
+            && key.startsWith(es.getPath()) && key.charAt(len) == '/'))) {
 
       return es;
     }
@@ -1446,37 +1484,40 @@ public class NameNodeDummy {
     }
     return count;
   }
-  
+
   public long getCountOfFilesDirectoriesAndBlocks() {
     this.getFSNamesystem();
     long inodes = fs.dir.totalInodes();
     long blocks = fs.getBlocksTotal();
-    return inodes+blocks;
+    return inodes + blocks;
   }
+
   /**
    * Find the children list for the giving path.
    * As like /a/b, return all /a/b/c1, /a/b/c2, but don't return /a/b/c/d1
    * @param path
    * @return
    */
-  public synchronized ExternalStorage[] findChildren(String parent, boolean includeSelf) {
+  public synchronized ExternalStorage[] findChildren(String parent,
+      boolean includeSelf) {
     ExternalStorage[] ess = this.findAllValuesInRadixTree(parent, RADIX_ROOT);
-    if (ess == null) return null;
+    if (ess == null)
+      return null;
     List<ExternalStorage> list = new ArrayList<ExternalStorage>();
     int count = this.calculateSlashCount(parent);
     count++;
     for (int i = 0; i < ess.length; i++) {
       int splash = calculateSlashCount(ess[i].getPath());
       if (includeSelf) {
-        if ( splash == count || splash == count -1) {
+        if (splash == count || splash == count - 1) {
           list.add(ess[i]);
         }
       } else {
-        if ( splash == count) {
+        if (splash == count) {
           list.add(ess[i]);
         }
       }
-      
+
     }
     ExternalStorage[] es = new ExternalStorage[list.size()];
     return list.toArray(es);
@@ -1619,23 +1660,26 @@ public class NameNodeDummy {
 
   }
 
-  private int getSecondSplashIndex(String path){
+  private int getSecondSplashIndex(String path) {
     //if (path == null || path.length() == 0) return -1;
     int index = 0;
-    for(int i = 0; i< path.length(); i++){
-      if (path.charAt(i) == '/'){
+    for (int i = 0; i < path.length(); i++) {
+      if (path.charAt(i) == '/') {
         index++;
-        if (index == 2) return i;
+        if (index == 2)
+          return i;
       }
     }
     return -1;
   }
-  public String removeNamespace(String path){
-    if (path.startsWith(INodeServer.PREFIX_SLASH)){
-      return path.substring(getSecondSplashIndex(path),path.length());
+
+  public String removeNamespace(String path) {
+    if (path.startsWith(INodeServer.PREFIX_SLASH)) {
+      return path.substring(getSecondSplashIndex(path), path.length());
     }
     return path;
   }
+
   public static void main(String[] args) {
     System.out.println(NameNodeDummy.getNameNodeDummyInstance()
         .findExternalNN_OLD("/data1/test/tt", true));

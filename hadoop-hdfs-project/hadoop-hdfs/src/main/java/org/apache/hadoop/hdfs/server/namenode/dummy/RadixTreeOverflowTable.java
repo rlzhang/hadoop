@@ -57,4 +57,9 @@ public class RadixTreeOverflowTable implements IOverflowTable<ExternalStorage, R
      return list.toArray(temp);
   }
 
+  @Override
+  public RadixTreeNode<ExternalStorage> findLastMatchedNodeInTree(String key) {
+    return tree.lastMatchNodeInTree(key);
+  }
+
 }

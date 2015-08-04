@@ -29,6 +29,9 @@ public interface IOverflowTable<T, R> {
    * @return
    */
   public T findLastMatchedNode(String key);
+  
+  
+  public R findLastMatchedNodeInTree(String key);
 
   /**
    * Insert a node.
