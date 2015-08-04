@@ -1180,6 +1180,7 @@ public class NameNodeDummy {
 
       while (true) {
          es = rt.getValue();
+         if (es == null) break;
         if (es.getPath().equals(key)) {
           //Good to go
           break;
