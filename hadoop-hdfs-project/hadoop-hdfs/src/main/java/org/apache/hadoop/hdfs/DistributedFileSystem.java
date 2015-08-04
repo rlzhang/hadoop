@@ -931,16 +931,16 @@ public class DistributedFileSystem extends FileSystem {
       //For multi-branch tree.
       ExternalStorage[] es = nn.findChildren(src, false);
       //ExternalStorage[] es = nn.findExternalNNClient(src);
-      ExternalStorage e = nn.findRadixTreeNodeServer(src);
-      if (e != null) {
-        int len = 1;
-        if (es != null && es.length > 0) len += es.length;
-        ExternalStorage[] ess = new ExternalStorage[len];
-        if (es != null && es.length > 0)
-        System.arraycopy(es, 0, ess, 0, es.length);
-        ess[len-1] = e;
-        es = ess;
-      }
+//      ExternalStorage e = nn.findRadixTreeNodeServer(src);
+//      if (e != null) {
+//        int len = 1;
+//        if (es != null && es.length > 0) len += es.length;
+//        ExternalStorage[] ess = new ExternalStorage[len];
+//        if (es != null && es.length > 0)
+//        System.arraycopy(es, 0, ess, 0, es.length);
+//        ess[len-1] = e;
+//        es = ess;
+//      }
       /**
       for(int i =0;i<es.length;i++){
       String path = "/" + INodeServer.PREFIX+es[i].getSourceNNServer()+src;
@@ -956,11 +956,13 @@ public class DistributedFileSystem extends FileSystem {
       if (NameNodeDummy.DEBUG)
         NameNodeDummy
             .debug("=======[DistributedFileSystem]listStatusInternal] Getting namespace from other namenode Done!");
+      es = null;
     }
     if (NameNodeDummy.DEBUG)
       NameNodeDummy
           .debug("[DistributedFileSystem]listStatusInternal: thisListing="
               + thisListing);
+   
     return thisListing;
   }
 
