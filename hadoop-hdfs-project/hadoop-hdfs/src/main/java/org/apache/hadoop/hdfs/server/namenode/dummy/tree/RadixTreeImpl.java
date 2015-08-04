@@ -7,6 +7,8 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Queue;
 
+import org.apache.hadoop.hdfs.server.namenode.NameNodeDummy;
+
 public class RadixTreeImpl<T> implements RadixTree<T>, Formattable {
 
   protected RadixTreeNode<T> root;
@@ -442,17 +444,29 @@ public class RadixTreeImpl<T> implements RadixTree<T>, Formattable {
     
    //System.out.println(key + ", 1)lastMatchNode is " + tmp.getKey());
     if (tmp != null) {
-      while (tmp != null && !tmp.isReal()){
+      while (true){
+        if (tmp == null || tmp.isReal()) break;
         tmp = tmp.getParent();
       }
 //      if (tmp!=null && !key.endsWith(tmp.getKey())){
 //        tmp = null;
 //      }
-      //System.out.println(key + ", 2)lastMatchNode is " + (tmp == null ? null : tmp.getKey()));
+      //System.out.println(key.endsWith(tmp.getKey()) + key + ", 2)lastMatchNode is " + (tmp == null ? null : tmp.getKey()));
     }
     return tmp == null ? null : tmp.getValue();
   }
 
+  /**
+   * Check if legal, avoid this case: key: /test/user/a1 match /test/user/a
+   * @param p1
+   * @param p2
+   * @return
+   */
+  private boolean isLegal(String p1, String p2) {
+    int l1 = NameNodeDummy.getNameNodeDummyInstance().calculateSlashCount(p1);
+    int l2 = NameNodeDummy.getNameNodeDummyInstance().calculateSlashCount(p2);
+    return (l1 == l2 && p1.length() != p2.length() ? false : true);
+  }
   //private RadixTreeNode<T> lastMatch = null;
 
   private RadixTreeNode<T> lastMatchNode(String key, RadixTreeNode<T> node) {
@@ -470,16 +484,16 @@ public class RadixTreeImpl<T> implements RadixTree<T>, Formattable {
       String newText = key.substring(numberOfMatchingCharacters, key.length());
       for (RadixTreeNode<T> child : node.getChildren()) {
         char a = newText.charAt(0);
-        //System.out.println(">>>" + child.getKey() + ":: " + newText.charAt(0));
+        //System.out.println(">>>" + child.getKey() + ":: " + newText);
         if (child.getKey().startsWith(a + "")) {
-          if (a == '/' && child.getKey().length() > 1 && newText.length() > 1 && newText.charAt(1) != child.getKey().charAt(1)) break;
+          //if (a == '/' && child.getKey().length() > 1 && newText.length() > 1 && newText.charAt(1) != child.getKey().charAt(1)) break;
           result = lastMatchNode(newText, child);
           break;
         }
       }
     }
-    //System.out.println(node.getKey() + ">>>real?" + node.isReal());
-    return result == null ? node : result;
+    //System.out.println("[lastMatchNode] key " + key + ", node is " + node.getKey());
+    return result == null ? (isLegal(key,node.getKey()) ? node : node.getParent()) : result;
   }
 
 }

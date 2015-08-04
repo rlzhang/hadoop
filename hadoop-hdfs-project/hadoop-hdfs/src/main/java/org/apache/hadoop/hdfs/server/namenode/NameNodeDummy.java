@@ -1438,7 +1438,7 @@ public class NameNodeDummy {
    * @param path
    * @return
    */
-  private int calculateSlashCount(String path) {
+  public int calculateSlashCount(String path) {
     int count = 0;
     for (int i = 0; i < path.length() - 1; i++) {
       if (path.charAt(i) == '/')
