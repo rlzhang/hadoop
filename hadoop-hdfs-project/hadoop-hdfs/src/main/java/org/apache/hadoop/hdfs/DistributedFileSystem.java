@@ -26,7 +26,6 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
@@ -89,7 +88,6 @@ import org.apache.hadoop.hdfs.server.namenode.dummy.ClientMerge;
 import org.apache.hadoop.hdfs.server.namenode.dummy.ExternalStorage;
 import org.apache.hadoop.hdfs.server.namenode.dummy.INodeServer;
 import org.apache.hadoop.hdfs.server.namenode.dummy.OverflowTable;
-import org.apache.hadoop.hdfs.server.namenode.dummy.OverflowTableNode;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.AccessControlException;
@@ -365,7 +363,7 @@ public class DistributedFileSystem extends FileSystem {
       return new DFSClientProxy(dfs, path);
     //return new DFSClientProxy(DFSClient.getDfsclient(host), PRE + INodeServer.PREFIX + namespace + path);
     return new DFSClientProxy(DFSClient.getDfsclient(es.getTargetNNServer()),
-        PRE + INodeServer.PREFIX + es.getSourceNNServer() + path);
+        PRE + INodeServer.PREFIX + es.getSourceNNServer() + path, es);
   }
 //  private DFSClientProxy getRightDFSClient(String path) {
 //    ExternalStorage es = NameNodeDummy.getValueFromLRUMap(path);
@@ -904,7 +902,7 @@ public class DistributedFileSystem extends FileSystem {
    * @param src
    */
   private DirectoryListing updateStatusInternal(DirectoryListing thisListing,
-      String src) {
+      String src, DFSClientProxy proxy) {
 //    boolean hasOverflowTable = false;
 //    if (thisListing != null) {
 //      HdfsFileStatus[] partialListing = thisListing.getPartialListing();
@@ -952,7 +950,14 @@ public class DistributedFileSystem extends FileSystem {
       thisListing = DirectoryListing.merge(thisListing, thisListing2);
       }
       **/
-      thisListing = ClientMerge.mergeWithThreadPool(es, src, thisListing);
+      
+
+     
+      //thisListing = ClientMerge.mergeWithThreadPool(es, src, thisListing);
+      ClientMerge cm = new ClientMerge(es, src, thisListing);
+      if (proxy.es != null)
+        cm.addToSet(proxy.es.getTargetNNServer(), proxy.path);
+      thisListing = cm.start();
       if (NameNodeDummy.DEBUG)
         NameNodeDummy
             .debug("=======[DistributedFileSystem]listStatusInternal] Getting namespace from other namenode Done!");
@@ -982,7 +987,7 @@ public class DistributedFileSystem extends FileSystem {
         proxy.client.listPaths(proxy.path, HdfsFileStatus.EMPTY_NAME);
     if (NameNodeDummy.useDistributedNN) {
       //Here should use original path, don't add target NN namespace path.
-      thisListing = this.updateStatusInternal(thisListing, src);
+      thisListing = this.updateStatusInternal(thisListing, src, proxy);
     }
 
     if (thisListing == null) { // the directory does not exist
@@ -2657,9 +2662,16 @@ public class DistributedFileSystem extends FileSystem {
 class DFSClientProxy {
   DFSClient client;
   String path;
-
+  ExternalStorage es;
+  
   DFSClientProxy(DFSClient client, String path) {
     this.client = client;
     this.path = path;
+  }
+  
+  DFSClientProxy(DFSClient client, String path, ExternalStorage es) {
+    this.client = client;
+    this.path = path;
+    this.es = es;
   }
 }
