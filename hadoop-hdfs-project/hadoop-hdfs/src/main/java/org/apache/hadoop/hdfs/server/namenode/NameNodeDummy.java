@@ -1172,6 +1172,7 @@ public class NameNodeDummy {
       Map<String, IOverflowTable<ExternalStorage, RadixTreeNode>> root) {
     IOverflowTable<ExternalStorage, RadixTreeNode> ot =
         root.get(OverflowTable.getNaturalRootFromFullPath(key));
+    if (ot == null) return null;
     RadixTreeNode<ExternalStorage> rt = ot.findLastMatchedNodeInTree(key);
     //System.out.println(key + " [::] " + (rt == null ? "null" : rt.getValue()));
     ExternalStorage es = null;
