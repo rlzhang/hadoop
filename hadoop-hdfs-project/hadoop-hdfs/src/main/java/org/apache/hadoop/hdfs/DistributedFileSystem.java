@@ -966,7 +966,7 @@ public class DistributedFileSystem extends FileSystem {
     if (NameNodeDummy.DEBUG)
       NameNodeDummy
           .debug("[DistributedFileSystem]listStatusInternal: thisListing="
-              + thisListing);
+              + (thisListing == null ? "null" : (thisListing.getPartialListing() == null ? "no partialListing." : thisListing.getPartialListing().length)));
    
     return thisListing;
   }
@@ -985,6 +985,8 @@ public class DistributedFileSystem extends FileSystem {
     DFSClientProxy proxy = this.getRightDFSClient(src);
     DirectoryListing thisListing =
         proxy.client.listPaths(proxy.path, HdfsFileStatus.EMPTY_NAME);
+    src = proxy.path;
+    p = new Path(src);
     if (NameNodeDummy.useDistributedNN) {
       //Here should use original path, don't add target NN namespace path.
       thisListing = this.updateStatusInternal(thisListing, src, proxy);
@@ -1018,7 +1020,8 @@ public class DistributedFileSystem extends FileSystem {
 
     // now fetch more entries
     do {
-      thisListing = dfs.listPaths(src, thisListing.getLastName());
+      //thisListing = dfs.listPaths(src, thisListing.getLastName());
+      thisListing = proxy.client.listPaths(src, thisListing.getLastName());
 
       if (thisListing == null) { // the directory is deleted
         throw new FileNotFoundException("File " + p + " does not exist.");
@@ -1077,7 +1080,11 @@ public class DistributedFileSystem extends FileSystem {
         // round-trips as we fetch more batches of listings
         src = getPathName(resolvePath(absF));
         // fetch the first batch of entries in the directory
-        thisListing = dfs.listPaths(src, HdfsFileStatus.EMPTY_NAME, true);
+        DFSClientProxy dfs = getRightDFSClient(src);
+        src = dfs.path;
+        thisListing = dfs.client.listPaths(src, HdfsFileStatus.EMPTY_NAME, true);
+        //path = dfs.path;
+        //thisListing = dfs.listPaths(src, HdfsFileStatus.EMPTY_NAME, true);
         statistics.incrementReadOps(1);
         if (thisListing == null) { // the directory does not exist
           throw new FileNotFoundException("File " + p + " does not exist.");

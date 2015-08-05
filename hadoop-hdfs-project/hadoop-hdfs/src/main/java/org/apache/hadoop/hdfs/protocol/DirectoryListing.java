@@ -52,20 +52,34 @@ public class DirectoryListing {
    * @param partialListing
    * @param remainingEntries
    */
-  public synchronized static DirectoryListing merge(DirectoryListing source,DirectoryListing target){
-	  if (target == null || target.partialListing == null || (target.partialListing.length == 0 && target.remainingEntries != 0)) {
-	      return source;
-	    }
-	  if (source == null || source.partialListing == null || (source.partialListing.length == 0 && source.remainingEntries != 0)) {
-	      return target;
-	    }
-	    HdfsFileStatus[] hs = new HdfsFileStatus[source.partialListing.length+target.partialListing.length];
-	    System.arraycopy(source.partialListing, 0, hs, 0, source.partialListing.length);
-	    System.arraycopy(target.partialListing, 0, hs, source.partialListing.length, target.partialListing.length);
-	    source.partialListing = hs;
-	    source.remainingEntries += target.remainingEntries;
-	    return source;
+  public synchronized  DirectoryListing merge(DirectoryListing target){
+    if (target == null || target.partialListing == null || (target.partialListing.length == 0 && target.remainingEntries != 0)) {
+        return this;
+      }
+    if (this.partialListing == null || (this.partialListing.length == 0 && this.remainingEntries != 0)) {
+        return target;
+      }
+      HdfsFileStatus[] hs = new HdfsFileStatus[this.partialListing.length+target.partialListing.length];
+      System.arraycopy(this.partialListing, 0, hs, 0, this.partialListing.length);
+      System.arraycopy(target.partialListing, 0, hs, this.partialListing.length, target.partialListing.length);
+      this.partialListing = hs;
+      this.remainingEntries += target.remainingEntries;
+      return this;
   }
+//  public synchronized  DirectoryListing merge(DirectoryListing source,DirectoryListing target){
+//	  if (target == null || target.partialListing == null || (target.partialListing.length == 0 && target.remainingEntries != 0)) {
+//	      return source;
+//	    }
+//	  if (source == null || source.partialListing == null || (source.partialListing.length == 0 && source.remainingEntries != 0)) {
+//	      return target;
+//	    }
+//	    HdfsFileStatus[] hs = new HdfsFileStatus[source.partialListing.length+target.partialListing.length];
+//	    System.arraycopy(source.partialListing, 0, hs, 0, source.partialListing.length);
+//	    System.arraycopy(target.partialListing, 0, hs, source.partialListing.length, target.partialListing.length);
+//	    source.partialListing = hs;
+//	    source.remainingEntries += target.remainingEntries;
+//	    return source;
+//  }
 
   /**
    * Get the partial listing of file status

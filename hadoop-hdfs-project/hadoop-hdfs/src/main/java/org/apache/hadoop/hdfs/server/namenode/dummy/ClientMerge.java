@@ -118,8 +118,9 @@ class MergeThread extends Thread {
       DirectoryListing thisListing2 =
           client.listPaths(path, HdfsFileStatus.EMPTY_NAME);
       synchronized (cm.obj) {
-        cm.setCurListing(DirectoryListing.merge(cm.getCurListing(),
-            thisListing2));
+        cm.setCurListing(cm.getCurListing().merge(thisListing2));
+        //cm.setCurListing(DirectoryListing.merge(cm.getCurListing(),
+          //  thisListing2));
       }
     } catch (IOException e) {
       e.printStackTrace();

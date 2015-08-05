@@ -1999,6 +1999,8 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
     throws IOException {
     checkOpen();
     try {
+      if (NameNodeDummy.DEBUG)
+        System.out.println("[DFSClient] listPaths:: " + src);
       return namenode.getListing(src, startAfter, needLocation);
     } catch(RemoteException re) {
       throw re.unwrapRemoteException(AccessControlException.class,
