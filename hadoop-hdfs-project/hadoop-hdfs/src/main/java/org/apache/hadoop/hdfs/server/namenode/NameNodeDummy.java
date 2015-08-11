@@ -288,6 +288,8 @@ public class NameNodeDummy {
        isSuc = this.moveNSBase(fs, path, server, out, false);
     } catch (IOException e) {
       throw e;
+    } catch (Exception e) {
+      System.err.println(e.getMessage());
     } finally {
       isRun.set(Boolean.FALSE);
     }
@@ -408,9 +410,18 @@ public class NameNodeDummy {
       return false;
     }
     isRun.set(Boolean.TRUE);
-    boolean isSuc =
-        this.moveNSBase(this.getFSNamesystem(), path, server, null, true);
-    isRun.set(Boolean.FALSE);
+    boolean isSuc = false;
+    try {
+      isSuc = this.moveNSBase(this.getFSNamesystem(), path, server, null, true);
+    } catch (IOException e){
+      throw e;
+    } catch (Exception e) {
+      System.err.println(e.getMessage());
+    } finally {
+      isRun.set(Boolean.FALSE);
+    }
+        
+    
     return isSuc;
   }
 
