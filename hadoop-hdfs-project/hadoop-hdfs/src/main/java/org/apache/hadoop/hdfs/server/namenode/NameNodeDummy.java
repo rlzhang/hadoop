@@ -283,8 +283,14 @@ public class NameNodeDummy {
       return false;
     }
     isRun.set(Boolean.TRUE);
-    boolean isSuc = this.moveNSBase(fs, path, server, out, false);
-    isRun.set(Boolean.FALSE);
+    boolean isSuc = false;
+    try {
+       isSuc = this.moveNSBase(fs, path, server, out, false);
+    } catch (IOException e) {
+      throw e;
+    } finally {
+      isRun.set(Boolean.FALSE);
+    }
     return isSuc;
   }
 
