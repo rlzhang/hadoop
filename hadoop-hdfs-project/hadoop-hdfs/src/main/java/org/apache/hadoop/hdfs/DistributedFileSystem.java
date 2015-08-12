@@ -954,14 +954,17 @@ public class DistributedFileSystem extends FileSystem {
 
      
       //thisListing = ClientMerge.mergeWithThreadPool(es, src, thisListing);
-      ClientMerge cm = new ClientMerge(es, src, thisListing);
-      if (proxy.es != null)
-        cm.addToSet(proxy.es.getTargetNNServer(), proxy.path);
-      thisListing = cm.start();
-      if (NameNodeDummy.DEBUG)
-        NameNodeDummy
-            .debug("=======[DistributedFileSystem]listStatusInternal] Getting namespace from other namenode Done!");
-      es = null;
+      if (es != null && es.length > 0) {
+        ClientMerge cm = new ClientMerge(es, src, thisListing);
+        if (proxy.es != null)
+          cm.addToSet(proxy.es.getTargetNNServer(), proxy.path);
+        thisListing = cm.start();
+        if (NameNodeDummy.DEBUG)
+          NameNodeDummy
+              .debug("=======[DistributedFileSystem]listStatusInternal] Getting namespace from other namenode Done!");
+        es = null;
+      }
+      
     }
     if (NameNodeDummy.DEBUG)
       NameNodeDummy

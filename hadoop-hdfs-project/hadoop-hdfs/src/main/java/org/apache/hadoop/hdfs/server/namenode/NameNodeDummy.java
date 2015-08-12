@@ -419,8 +419,7 @@ public class NameNodeDummy {
       System.err.println(e.getMessage());
     } finally {
       isRun.set(Boolean.FALSE);
-    }
-        
+    }       
     
     return isSuc;
   }

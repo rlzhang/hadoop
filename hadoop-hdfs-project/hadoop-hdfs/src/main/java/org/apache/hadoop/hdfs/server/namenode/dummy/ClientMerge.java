@@ -35,7 +35,7 @@ public class ClientMerge {
    */
   public void addToSet(String server, String path) {
     int hash = (server + path).hashCode();
-    set.add(Integer.valueOf(hash));
+    set.add(hash);
   }
 
   private boolean isContain(String server, String path) {
@@ -51,28 +51,33 @@ public class ClientMerge {
   }
 
   public DirectoryListing start() {
+    //long start = System.currentTimeMillis();
     if (NameNodeDummy.isNullOrBlank(es))
       return curListing;
     latch = new CountDownLatch(es.length);
-    ExecutorService excutor = Executors.newFixedThreadPool(es.length);
+    //ExecutorService excutor = Executors.newFixedThreadPool(es.length);
     if (NameNodeDummy.DEBUG)
       NameNodeDummy.debug("[ClientMerge] Start threads number is " + es.length);
+    
+   
     for (int i = 0; i < es.length; i++) {
       String path = BASEURL + es[i].getSourceNNServer() + src;
 
       if (!isContain(es[i].getTargetNNServer(), path)) {
+        if (!NameNodeDummy.TEST)
         NameNodeDummy.info("[ClientMerge] Connect to new name node server "
             + es[i].getTargetNNServer() + ";path is " + path);
         //Add to lru cache.
         NameNodeDummy.addToLRUMap(src, es[i]);
-        excutor.execute(new MergeThread(DFSClient.getDfsclient(es[i]
-            .getTargetNNServer()), path, this));
+        new MergeThread(DFSClient.getDfsclient(es[i]
+            .getTargetNNServer()), path, this).start();
         addToSet(es[i].getTargetNNServer(), path);
       } else {
         latch.countDown();
       }
     }
-    excutor.shutdown();
+    //excutor.shutdown();
+    
     try {
       latch.await();
     } catch (InterruptedException e) {
@@ -80,6 +85,7 @@ public class ClientMerge {
     } finally {
       set.clear();
     }
+    //System.out.println("Merge spend " + (System.currentTimeMillis() - start));
     return this.getCurListing();
   }
 
@@ -107,12 +113,14 @@ class MergeThread extends Thread {
   public void run() {
 
     //System.out.println(Thread.currentThread().getId() + ", Done!");
+    if (NameNodeDummy.DEBUG)
+      NameNodeDummy.debug("[ClientMerge] run : Get directory listing from "
+          + path);
+    
     try {
-      if (NameNodeDummy.DEBUG)
-        NameNodeDummy.debug("[ClientMerge] run : Get directory listing from "
-            + path);
       if (client == null) {
-        System.err.println("DFSClient is null!");
+        if (!NameNodeDummy.TEST)
+          System.err.println("DFSClient is null!");
         return;
       }
       DirectoryListing thisListing2 =
