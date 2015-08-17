@@ -2128,7 +2128,7 @@ public class FSDirectory implements Closeable {
    */
   private void verifyMaxDirItems(INode[] pathComponents, int pos)
       throws MaxDirectoryItemsExceededException {
-    if (pathComponents[pos-1] == null) return;
+    //if (pathComponents[pos-1] == null) return;
     final INodeDirectory parent = pathComponents[pos-1].asDirectory();
     final int count = parent.getChildrenList(Snapshot.CURRENT_STATE_ID).size();
     if (count >= maxDirItems) {
@@ -2192,7 +2192,7 @@ public class FSDirectory implements Closeable {
     updateCount(iip, pos,
         counts.get(Quota.NAMESPACE), counts.get(Quota.DISKSPACE), checkQuota);
     boolean isRename = (child.getParent() != null);
-    if (inodes[pos-1] == null) return false; // Avoid not created folders.
+    //if (inodes[pos-1] == null) return false; // Avoid not created folders.
     final INodeDirectory parent = inodes[pos-1].asDirectory();
     boolean added;
     try {
