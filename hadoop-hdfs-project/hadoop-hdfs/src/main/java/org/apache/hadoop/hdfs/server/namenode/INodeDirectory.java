@@ -530,6 +530,7 @@ public class INodeDirectory extends INodeWithAdditionalFields
   }
 
   public boolean addChild(INode node) {
+    if (node == null || node.getLocalNameBytes() == null) return false;
     final int low = searchChildren(node.getLocalNameBytes());
     if (low >= 0) {
       return false;
