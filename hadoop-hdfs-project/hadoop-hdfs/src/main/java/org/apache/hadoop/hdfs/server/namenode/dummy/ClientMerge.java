@@ -4,8 +4,6 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 import org.apache.hadoop.hdfs.DFSClient;
 import org.apache.hadoop.hdfs.protocol.DirectoryListing;
@@ -69,6 +67,7 @@ public class ClientMerge {
             + es[i].getTargetNNServer() + ";path is " + path);
         //Add to lru cache.
         NameNodeDummy.addToLRUMap(src, es[i]);
+        //latch.countDown();
         new MergeThread(DFSClient.getDfsclient(es[i]
             .getTargetNNServer()), path, this).start();
         addToSet(es[i].getTargetNNServer(), path);

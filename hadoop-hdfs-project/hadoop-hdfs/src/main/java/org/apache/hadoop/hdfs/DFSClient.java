@@ -618,6 +618,7 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
 	dfsPool.put(host, client);
   }
   
+  final static private String WWW = "www";
   /**
    * Should remove domain in case they are not match?
    * abc.google.com, only store abc.
@@ -627,7 +628,7 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
   private static String removeDomain(String host){
 	  if(host == null) return null;
 	  int i = -1;
-	  if((i = host.indexOf('.')) < 0 || host.startsWith("www")) return host;
+	  if((i = host.indexOf('.')) < 0 || host.startsWith(WWW)) return host;
 	  return host.substring(0, i);
   }
   

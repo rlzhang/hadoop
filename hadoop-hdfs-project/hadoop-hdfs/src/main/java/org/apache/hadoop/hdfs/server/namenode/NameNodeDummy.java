@@ -125,7 +125,8 @@ public class NameNodeDummy {
    * @param value
    */
   public static void addToLRUMap(String key, ExternalStorage value) {
-    allPathCache.put(key, value);
+    if (allPathCache.get(key) == null)
+      allPathCache.put(key, value);
   }
 
   public static int lruMapSize() {
